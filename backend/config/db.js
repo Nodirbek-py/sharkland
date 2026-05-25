@@ -30,7 +30,7 @@ const connectDB = async () => {
         OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
 
         // 4. Strukturani sinxronizatsiya qilamiz
-        await sequelize.sync({ force: true });
+        await sequelize.sync({ alter: true });
         console.log('Database schema structures synchronized.');
 
     } catch (error) {

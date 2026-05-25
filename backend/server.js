@@ -16,7 +16,7 @@ const server = http.createServer(app);
 // Socket.io sozlamalari
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5178", // Agar ofitsiant/vendor porti boshqa bo'lsa, uni ham qo'shing
+        origin: "http://localhost:5179", // Agar ofitsiant/vendor porti boshqa bo'lsa, uni ham qo'shing
         methods: ["GET", "POST"]
     }
 });

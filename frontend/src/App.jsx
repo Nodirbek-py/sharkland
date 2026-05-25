@@ -37,7 +37,9 @@ export default function App() {
       return <ReceptionistDashboard user={user} onLogout={handleLogout} />;
     case "waiter":
       return <WaiterDashboard user={user} onLogout={handleLogout} />;
-    case "vendor":
+    case "barman":
+      return <VendorDashboard user={user} onLogout={handleLogout} />;
+    case "storekeeper":
       return <VendorDashboard user={user} onLogout={handleLogout} />;
     default:
       return (
