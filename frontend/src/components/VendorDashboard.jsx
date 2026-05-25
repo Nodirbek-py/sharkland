@@ -12,7 +12,7 @@ import {
   Layers,
 } from "lucide-react";
 
-const socket = io("http://localhost:5000");
+const socket = io("");
 
 export default function VendorDashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState("orders");
@@ -33,7 +33,7 @@ export default function VendorDashboard({ user, onLogout }) {
   const fetchPendingOrders = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/vendors/orders/pending",
+        "/api/vendors/orders/pending",
       );
       setOrders(res.data);
     } catch (err) {
@@ -69,7 +69,7 @@ export default function VendorDashboard({ user, onLogout }) {
   const fetchInventory = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/vendors/inventory?vendorUsername=${user.username}`,
+        `/api/vendors/inventory?vendorUsername=${user.username}`,
       );
       setProducts(res.data);
     } catch (err) {
@@ -93,13 +93,13 @@ export default function VendorDashboard({ user, onLogout }) {
     try {
       if (editingProduct) {
         await axios.put(
-          `http://localhost:5000/api/vendors/inventory/${editingProduct.id}`,
+          `/api/vendors/inventory/${editingProduct.id}`,
           payload,
         );
         setEditingProduct(null);
       } else {
         await axios.post(
-          `http://localhost:5000/api/vendors/inventory`,
+          `/api/vendors/inventory`,
           payload,
         );
       }
@@ -115,7 +115,7 @@ export default function VendorDashboard({ user, onLogout }) {
 
   const handleDeleteProduct = async (id) => {
     if (confirm("Mahsulot o'chirilsinmi?")) {
-      await axios.delete(`http://localhost:5000/api/vendors/inventory/${id}`);
+      await axios.delete(`/api/vendors/inventory/${id}`);
       fetchInventory();
     }
   };
@@ -125,7 +125,7 @@ export default function VendorDashboard({ user, onLogout }) {
     if (!cardId) return alert("Kartani o'qiting!");
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/vendors/orders/charge-pending",
+        "/api/vendors/orders/charge-pending",
         {
           orderId,
           nfcCardId: cardId,
@@ -148,7 +148,7 @@ export default function VendorDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/vendors/quick-charge",
+        "/api/vendors/quick-charge",
         {
           nfcCardId: quickCardId,
           amount: Number(quickAmount),
