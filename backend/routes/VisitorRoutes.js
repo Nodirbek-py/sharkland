@@ -130,4 +130,51 @@ router.post('/topup', async (req, res) => {
     }
 });
 
+// 5. Aquaparkka kirish uchun kartadan haq yechish (YANGI FEATURE)
+router.post('/charge-entry', async (req, res) => {
+    try {
+        const { nfcCardId, entryFee } = req.body;
+
+        // 1. Kartani bazadan qidiramiz
+        const visitor = await Visitor.findOne({ where: { nfcCardId } });
+        if (!visitor) {
+            return res.status(404).json({ success: false, message: "Karta egasi topilmadi!" });
+        }
+
+        // 2. Mijozning balansi yetarli ekanligini tekshiramiz
+        const currentBalance = Number(visitor.balance);
+        const fee = Number(entryFee);
+
+        if (currentBalance < fee) {
+            return res.status(400).json({
+                success: false,
+                insufficient: true,
+                message: `Mijoz balansida mablag' yetarli emas! Bilet: ${fee.toLocaleString()} so'm, joriy balans: ${currentBalance.toLocaleString()} so'm.`
+            });
+        }
+
+        // 3. Balansdan pulni ayiramiz va saqlaymiz
+        visitor.balance = currentBalance - fee;
+        await visitor.save();
+
+        // 4. Moliyaviy tranzaksiya logini yaratamiz
+        await Transaction.create({
+            visitorId: visitor.id,
+            type: 'expense', // Tizim uchun kirim, lekin tashrif buyuruvchi kartasi uchun chiqim
+            amount: fee,
+            location: 'Main Aquapark Entrance'
+        });
+
+        res.json({
+            success: true,
+            message: "Kirish muvaffaqiyatli tasdiqlandi! Yo'lak ochildi.",
+            visitorName: visitor.name,
+            updatedBalance: visitor.balance
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

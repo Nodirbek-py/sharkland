@@ -18,6 +18,11 @@ const Product = sequelize.define('Product', {
     vendorUsername: {
         type: DataTypes.STRING,
         allowNull: false
+    },
+    storeId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'Stores', key: 'id' }
     }
 });
 

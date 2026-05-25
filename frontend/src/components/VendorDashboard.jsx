@@ -30,7 +30,19 @@ export default function VendorDashboard({ user, onLogout }) {
   const [prodCategory, setProdCategory] = useState("bar");
   const [editingProduct, setEditingProduct] = useState(null);
 
+  const fetchPendingOrders = async () => {
+    try {
+      const res = await axios.get(
+        "http://localhost:5000/api/vendors/orders/pending",
+      );
+      setOrders(res.data);
+    } catch (err) {
+      console.error("Buyurtmalarni yuklashda xatolik:", err);
+    }
+  };
+
   useEffect(() => {
+    console.log(user)
     // Agar buyurtmalar oynasi ochiq bo'lsa, bazadan pending buyurtmalarni tortadi
     if (activeTab === "orders") {
       fetchPendingOrders();
@@ -54,17 +66,6 @@ export default function VendorDashboard({ user, onLogout }) {
     };
   }, []);
 
-  const fetchPendingOrders = async () => {
-    try {
-      const res = await axios.get(
-        "http://localhost:5000/api/vendors/orders/pending",
-      );
-      setOrders(res.data);
-    } catch (err) {
-      console.error("Buyurtmalarni yuklashda xatolik:", err);
-    }
-  };
-
   const fetchInventory = async () => {
     try {
       const res = await axios.get(
@@ -77,6 +78,7 @@ export default function VendorDashboard({ user, onLogout }) {
   };
 
   const handleAddOrUpdateProduct = async (e) => {
+    console.log(user)
     e.preventDefault();
     const payload = {
       name: prodName,
@@ -85,6 +87,7 @@ export default function VendorDashboard({ user, onLogout }) {
       unitType: prodUnitType,
       category: prodCategory,
       vendorUsername: user.username,
+      storeId: user.storeId,
     };
 
     try {
@@ -123,24 +126,26 @@ export default function VendorDashboard({ user, onLogout }) {
     try {
       const res = await axios.post(
         "http://localhost:5000/api/vendors/orders/charge-pending",
-        { orderId, nfcCardId: cardId },
+        {
+          orderId,
+          nfcCardId: cardId,
+          storeId: user.storeId,
+        },
       );
       alert(`To'lov muvaffaqiyatli! Qoldiq: ${res.data.remainingBalance} so'm`);
-      setCards((prev) => {
-        const c = { ...prev };
-        delete c[orderId];
-        return c;
-      });
+      // ... rest of the logic
     } catch (err) {
       alert(err.response?.data?.message);
     }
   };
 
+  // 2. UPDATE: Pass storeId for Quick Charge
   const handleQuickCharge = async (e) => {
     e.preventDefault();
     if (!quickCardId) return alert("NFC Kartani skanerlang!");
     if (!quickAmount || Number(quickAmount) <= 0)
       return alert("To'g'ri summa kiriting!");
+
     try {
       const res = await axios.post(
         "http://localhost:5000/api/vendors/quick-charge",
@@ -148,13 +153,10 @@ export default function VendorDashboard({ user, onLogout }) {
           nfcCardId: quickCardId,
           amount: Number(quickAmount),
           vendorName: user.username.toUpperCase(),
+          storeId: user.storeId,
         },
       );
-      alert(
-        `Tezkor to'lov muvaffaqiyatli! Karta qoldig'i: ${res.data.remainingBalance} so'm`,
-      );
-      setQuickAmount("");
-      setQuickCardId("");
+      // ... rest of the logic
     } catch (err) {
       alert(err.response?.data?.message || "To'lov amalga oshmadi");
     }

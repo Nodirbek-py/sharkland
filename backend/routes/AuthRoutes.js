@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
 
         res.json({
             success: true,
-            user: { username: user.username, role: user.role }
+            user: { username: user.username, role: user.role, storeId: user.storeId }
         });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

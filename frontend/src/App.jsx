@@ -15,6 +15,7 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (userData) => {
+    console.log(userData);
     setUser(userData);
     localStorage.setItem("aquapark_user", JSON.stringify(userData));
   };

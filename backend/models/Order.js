@@ -12,7 +12,12 @@ const Order = sequelize.define('Order', {
         allowNull: false,
         defaultValue: 'pending'
     },
-    waiterUsername: { type: DataTypes.STRING, allowNull: false }
+    waiterUsername: { type: DataTypes.STRING, allowNull: false },
+    storeId: {
+        type: DataTypes.UUID,
+        allowNull: true, // Nullable for general top-ups at reception
+        references: { model: 'Stores', key: 'id' }
+    }
 });
 
 

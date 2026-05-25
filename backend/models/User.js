@@ -8,6 +8,11 @@ const User = sequelize.define('User', {
     role: {
         type: DataTypes.ENUM('superadmin', 'receptionist', 'waiter', 'barman', 'storekeeper'),
         allowNull: false
+    },
+    storeId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'Stores', key: 'id' }
     }
 });
 

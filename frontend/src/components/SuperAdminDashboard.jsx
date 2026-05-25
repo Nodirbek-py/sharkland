@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Shield,
@@ -8,6 +8,7 @@ import {
   UserPlus,
   Calendar,
   BarChart3,
+  Store,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -21,16 +22,26 @@ import {
 
 export default function SuperAdminDashboard({ user, onLogout }) {
   const [txs, setTxs] = useState([]);
+  const [stores, setStores] = useState([]); // Yangi filiallar ro'yxati
+
+  const [graphPeriod, setGraphPeriod] = useState("weekly");
+
   const [analytics, setAnalytics] = useState({
     summary: { dailyIncome: 0, weeklyIncome: 0, monthlyIncome: 0 },
+    storeComparison: [], // Do'konlarni taqqoslash uchun ma'lumotlar
     chartData: [],
   });
 
-  // Yangi foydalanuvchi uchun shtatlar
+  // Yangi xodim shtatlari
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("waiter");
+  const [selectedStore, setSelectedStore] = useState(""); // Xodim biriktiriladigan do'kon
   const [msg, setMsg] = useState({ text: "", isError: false });
+
+  // Yangi do'kon shtatlari
+  const [storeName, setStoreName] = useState("");
+  const [storeMsg, setStoreMsg] = useState({ text: "", isError: false });
 
   const fetchAllData = () => {
     // Tranzaksiyalar tarixi
@@ -39,18 +50,44 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
-    // Davriy tahlillar va grafik ma'lumotlari
+    // Do'konlar ro'yxatini yuklash
     axios
-      .get("http://localhost:5000/api/admin/analytics")
-      .then((res) => setAnalytics(res.data))
+      .get("http://localhost:5000/api/admin/stores")
+      .then((res) => {
+        setStores(res.data);
+        if (res.data.length > 0) setSelectedStore(res.data[0].id);
+      })
       .catch((err) => console.error(err));
   };
+
+  useEffect(() => {
+    axios
+      .get(`http://localhost:5000/api/admin/analytics?period=${graphPeriod}`)
+      .then((res) => setAnalytics(res.data))
+      .catch((err) => console.error(err));
+  }, [graphPeriod]);
 
   useEffect(() => {
     fetchAllData();
   }, []);
 
-  // Yangi foydalanuvchi qo'shish funksiyasi
+  // Yangi do'kon/filial yaratish
+  const handleCreateStore = async (e) => {
+    e.preventDefault();
+    setStoreMsg({ text: "", isError: false });
+    try {
+      await axios.post("http://localhost:5000/api/admin/stores", {
+        name: storeName,
+      });
+      setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
+      setStoreName("");
+      fetchAllData(); // Ro'yxatni yangilash
+    } catch (err) {
+      setStoreMsg({ text: "Filial qo'shishda xatolik", isError: true });
+    }
+  };
+
+  // Yangi xodim qo'shish funksiyasi
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setMsg({ text: "", isError: false });
@@ -59,6 +96,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         username,
         password,
         role,
+        storeId: role === "receptionist" ? null : selectedStore, // Resepsionist hech qaysi do'konga kirmaydi
       });
       setMsg({ text: res.data.message, isError: false });
       setUsername("");
@@ -75,6 +113,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     .filter((t) => t.type === "topup")
     .reduce((s, t) => s + Number(t.amount), 0);
 
+  const isIndependentRole = role === "receptionist";
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* SHAXSIY HEADER */}
@@ -84,7 +124,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         </h1>
         <div className="flex items-center gap-4">
           <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-medium">
-            Tizim boshqaruvchisi: {user.username}
+            Tizim boshqaruvchisi: {user?.username || "Admin"}
           </span>
           <button
             onClick={onLogout}
@@ -96,11 +136,78 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       </header>
 
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* SECTION 1: DAVRIY DAROMADLAR VIDJETI */}
+        {/* SECTION 1: DO'KONLAR VA ULARNI TAQQOSLASH */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* YANGI DO'KON YARATISH */}
+          <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-center">
+            <h3 className="font-bold mb-4 flex items-center gap-2 text-lg">
+              <Store className="w-5 h-5 text-indigo-500" /> Yangi Do'kon
+              (Filial) Ochish
+            </h3>
+            {storeMsg.text && (
+              <p
+                className={`text-xs font-bold mb-3 ${storeMsg.isError ? "text-red-600" : "text-green-600"}`}
+              >
+                {storeMsg.text}
+              </p>
+            )}
+            <form onSubmit={handleCreateStore} className="flex gap-3">
+              <input
+                required
+                placeholder="Filial nomi (masalan: Hovuz Bar)"
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                className="border p-2.5 rounded-xl outline-none focus:border-indigo-500 text-sm flex-1"
+              />
+              <button
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition"
+              >
+                Yaratish
+              </button>
+            </form>
+          </div>
+
+          {/* DO'KONLAR SAVDOSINI TAQQOSLASH */}
+          <div className="bg-white p-6 rounded-2xl border shadow-sm">
+            <h3 className="font-bold mb-4 text-lg">
+              Filiallar Kesimida Savdo Tahlili
+            </h3>
+            <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+              {analytics.storeComparison &&
+              analytics.storeComparison.length > 0 ? (
+                analytics.storeComparison.map((store) => (
+                  <div
+                    key={store.storeName}
+                    className="flex justify-between items-center border-b border-slate-100 pb-2 text-sm"
+                  >
+                    <span className="font-bold text-slate-700">
+                      {store.storeName}
+                    </span>
+                    <div className="flex gap-4">
+                      <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                        Kunlik: {store.dailySales.toLocaleString()} UZS
+                      </span>
+                      <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md">
+                        Umumiy: {store.totalSales.toLocaleString()} UZS
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400 font-medium">
+                  Hozircha filiallar qo'shilmagan yoki savdo mavjud emas.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: DAVRIY DAROMADLAR VIDJETI */}
         <div>
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
-            <Calendar className="w-4 h-4" /> Savdo va Daromadlar Tahlili (Kafeda
-            Sotilgan)
+            <Calendar className="w-4 h-4" /> Umumiy Savdo va Daromadlar (Barcha
+            filiallar)
           </h2>
           <div className="grid sm:grid-cols-3 gap-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-emerald-50 flex items-center justify-between">
@@ -147,18 +254,44 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* SECTION 2: GRAFIK VA FOYDALANUVCHI QO'SHISH FORMASI */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* RECHARTS GRAFIKI */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between">
-            <div className="mb-4">
-              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                <BarChart3 className="text-blue-500 w-5 h-5" /> Haftalik Daromad
-                Tendensiyasi
-              </h3>
-              <p className="text-xs text-slate-400 font-medium">
-                Oxirgi 7 kundagi umumiy sotuv hajmi grafigi
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <BarChart3 className="text-blue-500 w-5 h-5" /> Daromad
+                  Tendensiyasi
+                </h3>
+                <p className="text-xs text-slate-400 font-medium">
+                  {graphPeriod === "daily" &&
+                    "Bugungi kunlik (soatbay) umumiy savdo grafigi"}
+                  {graphPeriod === "weekly" &&
+                    "Oxirgi 7 kundagi umumiy savdo grafigi"}
+                  {graphPeriod === "monthly" &&
+                    "Oxirgi 30 kundagi oylik savdo grafigi"}
+                </p>
+              </div>
+
+              <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-center">
+                <button
+                  onClick={() => setGraphPeriod("daily")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${graphPeriod === "daily" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Kunlik
+                </button>
+                <button
+                  onClick={() => setGraphPeriod("weekly")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${graphPeriod === "weekly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Haftalik
+                </button>
+                <button
+                  onClick={() => setGraphPeriod("monthly")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${graphPeriod === "monthly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Oylik
+                </button>
+              </div>
             </div>
 
             <div className="w-full h-64">
@@ -185,7 +318,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     stroke="#f1f5f9"
                   />
                   <XAxis
-                    dataKey="kun"
+                    dataKey="label"
                     stroke="#94a3b8"
                     fontSize={11}
                     tickLine={false}
@@ -195,7 +328,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => `${v / 1000}k`}
+                    tickFormatter={(v) => `${(v / 1000).toLocaleString()}k`}
                   />
                   <Tooltip
                     formatter={(value) => [
@@ -277,10 +410,35 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       Vendor - Oshxona (Storekeeper)
                     </option>
                     <option value="receptionist">
-                      Kassir / Resepsion (Receptionist)
+                      Kassir / Resepsion (Mustaqil)
                     </option>
                   </select>
                 </div>
+
+                {/* DO'KON TANLASH (Faqat xodim resepsionist bo'lmasa ko'rinadi) */}
+                {!isIndependentRole && (
+                  <div>
+                    <label className="block text-xs font-bold text-indigo-500 mb-1">
+                      Biriktiriladigan Do'kon (Filial)
+                    </label>
+                    <select
+                      required
+                      value={selectedStore}
+                      onChange={(e) => setSelectedStore(e.target.value)}
+                      className="w-full border p-2.5 rounded-xl bg-indigo-50 outline-none text-sm font-bold text-indigo-900 focus:border-indigo-500"
+                    >
+                      {stores.length === 0 && (
+                        <option value="">Do'konlar mavjud emas</option>
+                      )}
+                      {stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition mt-2 shadow-sm"
@@ -292,7 +450,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* SECTION 3: AUDIT LOG VA UMUMIY STATISTIKA */}
+        {/* SECTION 4: AUDIT LOG */}
         <div className="bg-white p-6 rounded-2xl border shadow-sm">
           <div className="flex justify-between items-center border-b pb-3 mb-4">
             <h3 className="font-bold text-slate-800 text-lg">
@@ -316,9 +474,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     {t.type === "topup" ? "Kassa Kirim" : "Sotuv"}
                   </span>
                   <span className="text-slate-500 font-medium">
-                    Joylashuv:{" "}
+                    {/* Bu yerda vaqtincha ID yoki do'kon nomi keladi */}
+                    Filial ID:{" "}
                     <b className="text-slate-700">
-                      {t.location || "Markaziy Kassa"}
+                      {t.storeId || "Markaziy Kassa"}
                     </b>
                   </span>
                 </div>

@@ -113,7 +113,7 @@ router.get('/orders/pending', async (req, res) => {
 
 // Ofitsiant yuborgan buyurtmani yopish (NFC orqali)
 router.post('/orders/charge-pending', async (req, res) => {
-    const { orderId, nfcCardId } = req.body;
+    const { orderId, nfcCardId, storeId } = req.body;
 
     try {
         // Buyurtmani bazadan qidirish
@@ -142,7 +142,8 @@ router.post('/orders/charge-pending', async (req, res) => {
             visitorId: visitor.id,
             type: 'expense',
             amount: order.totalAmount,
-            location: order.location
+            location: order.location,
+            storeId: storeId
         });
 
         // Ekranni yangilash uchun signal
@@ -157,7 +158,7 @@ router.post('/orders/charge-pending', async (req, res) => {
 // 2. ON-SPOT QUICK PAYMENT (TEZKOR TO'LOV - INVENTORYSIZ)
 // ===================================================================
 router.post('/quick-charge', async (req, res) => {
-    const { nfcCardId, amount, vendorName } = req.body;
+    const { nfcCardId, amount, vendorName, storeId } = req.body;
 
     if (!nfcCardId || !amount || Number(amount) <= 0) {
         return res.status(400).json({ message: "Karta ID va to'g'ri summa kiritilishi shart!" });
@@ -170,16 +171,15 @@ router.post('/quick-charge', async (req, res) => {
             return res.status(400).json({ message: "Mijoz balansida mablag' yetarli emas!" });
         }
 
-        // Pulni yechish
         visitor.balance = Number(visitor.balance) - Number(amount);
         await visitor.save();
 
-        // Tranzaksiyani qayd etish
         await Transaction.create({
             visitorId: visitor.id,
             type: 'expense',
             amount: amount,
-            location: vendorName || 'Tezkor Sotuv Nuqtasi'
+            location: vendorName || 'Tezkor Sotuv Nuqtasi',
+            storeId: storeId // <-- NEW: Link revenue to the branch
         });
 
         res.json({ success: true, remainingBalance: visitor.balance });
@@ -216,7 +216,7 @@ router.get('/inventory', async (req, res) => {
 // Yangi maxsulot qo'shish (O'lchov turi va miqdori bilan)
 router.post('/inventory', async (req, res) => {
     try {
-        const { name, price, stock, unitType, category, vendorUsername } = req.body;
+        const { name, price, stock, unitType, category, vendorUsername, storeId } = req.body;
 
         const product = await Product.create({
             name,
@@ -224,7 +224,8 @@ router.post('/inventory', async (req, res) => {
             stock: Number(stock) || 0.00,
             unitType: unitType || 'pcs',
             category: category,
-            vendorUsername
+            vendorUsername,
+            storeId: storeId
         });
 
         res.status(201).json({ success: true, product });
