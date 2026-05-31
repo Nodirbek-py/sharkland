@@ -43,12 +43,12 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const fetchAllData = () => {
     axios
-      .get("http://localhost:5000/api/admin/transactions")
+      .get("/api/admin/transactions")
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
     axios
-      .get("http://localhost:5000/api/admin/stores")
+      .get("/api/admin/stores")
       .then((res) => {
         setStores(res.data);
         if (res.data.length > 0) setSelectedStore(res.data[0].id);
@@ -71,7 +71,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setStoreMsg({ text: "", isError: false });
     try {
-      await axios.post("http://localhost:5000/api/admin/stores", {
+      await axios.post("/api/admin/stores", {
         name: storeName,
       });
       setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
@@ -89,7 +89,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setMsg({ text: "", isError: false });
     try {
-      const res = await axios.post("http://localhost:5000/api/admin/users", {
+      const res = await axios.post("/api/admin/users", {
         username,
         password,
         role,

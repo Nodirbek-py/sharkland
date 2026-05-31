@@ -5,7 +5,7 @@ import { Coffee, CheckCircle, DollarSign, Layers } from "lucide-react";
 import { useMemo } from "react";
 import qz from "qz-tray";
 
-const socket = io("http://localhost:5000");
+const socket = io("");
 
 async function printReceipt(order) {
   try {
@@ -84,7 +84,7 @@ export default function VendorDashboard({ user, onLogout }) {
   const fetchPendingOrders = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/vendors/orders/pending?storeId=${user.storeId}`,
+        `/api/vendors/orders/pending?storeId=${user.storeId}`,
       );
       setOrders(res.data);
     } catch (err) {
@@ -141,7 +141,7 @@ export default function VendorDashboard({ user, onLogout }) {
     if (!cardId) return alert("Kartani o'qiting!");
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/vendors/orders/charge-pending",
+        "/api/vendors/orders/charge-pending",
         {
           orderId,
           nfcCardId: cardId,
@@ -164,7 +164,7 @@ export default function VendorDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/vendors/quick-charge",
+        "/api/vendors/quick-charge",
         {
           nfcCardId: quickCardId,
           amount: Number(quickAmount),
