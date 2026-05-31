@@ -37,7 +37,7 @@ router.post('/users', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Receptionists don't need a storeId
-        const finalStoreId = (role === 'receptionist' || role === 'superadmin') ? null : storeId;
+        const finalStoreId = (role === 'receptionist' || role === 'superadmin' || role === 'waiter') ? null : storeId;
 
         const newUser = await User.create({
             username,
@@ -73,6 +73,7 @@ router.get('/analytics', async (req, res) => {
         // We only calculate revenue based on 'expense' transactions (when money enters the store from a user's card)
         const txs = await Transaction.findAll({ where: { type: 'expense' } });
         const stores = await Store.findAll();
+        console.log(txs)
 
         const dailyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((s, t) => s + Number(t.amount), 0);
         const weeklyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfWeek()).reduce((s, t) => s + Number(t.amount), 0);

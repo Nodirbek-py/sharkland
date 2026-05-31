@@ -20,12 +20,11 @@ router.get('/products/all', async (req, res) => {
     }
 });
 
-// Ofitsiant buyurtma yaratishi (BAZAGA SAQLASH + STOL RAQAMI + OMBORDAN AYIRISH)
 router.post('/orders/place', async (req, res) => {
     const { items, location, totalAmount, tableNumber, waiterUsername } = req.body;
 
     try {
-        // 1. Asosiy buyurtmani bazada yaratish
+        // 1. Asosiy bitta buyurtmani yaratish
         const order = await Order.create({
             tableNumber,
             location,
@@ -34,51 +33,42 @@ router.post('/orders/place', async (req, res) => {
             waiterUsername
         });
 
-        // 2. Buyurtma ichidagi mahsulotlarni (OrderItem) tayyorlash va bazaga yozish
-        const orderItemsPayload = items.map(item => ({
-            orderId: order.id,
-            productId: item.productId,
-            name: item.name,
-            priceAtPurchase: Number(item.price),
-            quantity: Number(item.quantity),
-            vendorUsername: item.vendorUsername
-        }));
+        const orderItemsPayload = [];
 
-        await OrderItem.bulkCreate(orderItemsPayload);
-
-        // ==========================================================
-        // 3. YANGLIK: OMBOR QOLDIG'IDAN (INVENTORY) AYIRIB TASHHLASH
-        // ==========================================================
+        // 2. Mahsulotlarni tekshirish, ombordan ayirish va qaysi do'konga tegishli ekanligini aniqlash
         for (const item of items) {
             const product = await Product.findByPk(item.productId);
-            if (product) {
-                // Stockdan buyurtma miqdorini ayiramiz (masalan, kg yoki litr bo'lsa ham ishlaydi)
-                product.stock = Number(product.stock) - Number(item.quantity);
-                await product.save();
-            }
+            if (!product) throw new Error(`${item.name} topilmadi!`);
+
+            // Ombordan ayirish
+            product.stock = Number(product.stock) - Number(item.quantity);
+            await product.save();
+
+            orderItemsPayload.push({
+                orderId: order.id,
+                productId: item.productId,
+                name: item.name,
+                priceAtPurchase: Number(item.price),
+                quantity: Number(item.quantity),
+                vendorUsername: product.vendorUsername,
+                storeId: product.storeId // <--- Maxsulot o'zining do'koniga yo'naltiriladi
+            });
         }
 
-        // 4. Socket orqali vendor monitoriga xabar berish uchun obyekt
-        const liveOrder = {
+        // Barcha itemlarni bazaga saqlash
+        await OrderItem.bulkCreate(orderItemsPayload);
+
+        // 3. Socket orqali xabar yuborish
+        req.io.emit('new_order', {
             id: order.id,
             tableNumber: order.tableNumber,
             location: order.location,
             totalAmount: order.totalAmount,
             status: 'pending',
-            items: orderItemsPayload.map(i => ({
-                ...i,
-                price: i.priceAtPurchase
-            }))
-
-        };
-
-        // Barcha vendorlarga yuboramiz.
-        req.io.emit('new_order', liveOrder);
-        res.json({
-            success: true,
-            message: "Buyurtma yuborildi va mahsulotlar ombordan yechildi",
-            orderId: order.id
+            items: orderItemsPayload
         });
+
+        res.json({ success: true, message: "Buyurtma yuborildi", orderId: order.id });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -86,26 +76,26 @@ router.post('/orders/place', async (req, res) => {
 
 // Kutilayotgan (pending) buyurtmalarni bazadan yuklab olish (Refresh uchun)
 router.get('/orders/pending', async (req, res) => {
+    const { storeId } = req.query;
+
     try {
+        let itemFilter = {};
+        if (storeId) {
+            itemFilter.storeId = storeId;
+        }
+
         const pendingOrders = await Order.findAll({
             where: { status: 'pending' },
             include: [{
                 model: OrderItem,
-                as: 'OrderItems'
+                as: 'OrderItems', // Yoki modelingizdagi bog'lanish nomi (masalan: 'items')
+                where: itemFilter, // Faqat shu do'konga tegishli maxsulotlarni oladi
+                required: storeId ? true : false // Faqat shu do'konning maxsuloti bor orderlarni qaytaradi
             }],
             order: [['createdAt', 'DESC']]
         });
 
-        const formattedOrders = pendingOrders.map(order => {
-            const plainOrder = order.get({ plain: true });
-            return {
-                ...plainOrder,
-                // Endi bazadan ma'lumot aynan 'OrderItems' nomi bilan keladi
-                items: plainOrder.OrderItems || []
-            };
-        });
-
-        res.json(formattedOrders);
+        res.json(pendingOrders);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -113,41 +103,65 @@ router.get('/orders/pending', async (req, res) => {
 
 // Ofitsiant yuborgan buyurtmani yopish (NFC orqali)
 router.post('/orders/charge-pending', async (req, res) => {
+    // Endi frontenddan kelyotgan storeId dan foydalanamiz
     const { orderId, nfcCardId, storeId } = req.body;
 
     try {
-        // Buyurtmani bazadan qidirish
         const order = await Order.findByPk(orderId);
-        if (!order || order.status === 'paid') {
-            return res.status(404).json({ message: "Buyurtma topilmadi yoki allaqachon to'langan." });
+        if (!order) {
+            return res.status(404).json({ message: "Buyurtma topilmadi." });
         }
 
         const visitor = await Visitor.findOne({ where: { nfcCardId } });
         if (!visitor) return res.status(404).json({ message: "Karta egasi topilmadi." });
 
-        if (Number(visitor.balance) < Number(order.totalAmount)) {
+        // 1. Faqat shu filialga tegishli va HALI TO'LANMAGAN mahsulotlarni olamiz
+        const items = await OrderItem.findAll({
+            where: { orderId: order.id, storeId: storeId, isPaid: false }
+        });
+
+        if (items.length === 0) {
+            return res.status(400).json({ message: "Bu filial uchun to'lanmagan mahsulotlar qolmagan." });
+        }
+
+        // 2. Faqat shu filialning summasini hisoblaymiz (priceAtPurchase orqali)
+        const storeTotal = items.reduce((sum, item) => {
+            return sum + (Number(item.priceAtPurchase || 0) * Number(item.quantity || 0));
+        }, 0);
+
+        if (Number(visitor.balance) < storeTotal) {
             return res.status(400).json({ message: "Mijoz balansida mablag' yetarli emas!" });
         }
 
-        // Pulni yechish
-        visitor.balance = Number(visitor.balance) - Number(order.totalAmount);
+        // 3. Mijozdan faqat filialning pulini yechish
+        visitor.balance = Number(visitor.balance) - storeTotal;
         await visitor.save();
 
-        // Buyurtma holatini yangilash
-        order.status = 'paid';
-        await order.save();
+        // 4. Shu mahsulotlarni to'langan deb belgilash
+        for (let item of items) {
+            item.isPaid = true;
+            await item.save();
+        }
 
-        // Tranzaksiyani saqlash
+        // 5. Tranzaksiya yozish (Faqat shu filial uchun)
         await Transaction.create({
             visitorId: visitor.id,
             type: 'expense',
-            amount: order.totalAmount,
+            amount: storeTotal,
             location: order.location,
             storeId: storeId
         });
 
-        // Ekranni yangilash uchun signal
-        req.io.emit('order_paid', { orderId });
+        // 6. Agar butun orderdagi HAMMA narsa to'langan bo'lsa, asosiy orderni ham yopamiz
+        const remainingUnpaid = await OrderItem.count({ where: { orderId: order.id, isPaid: false } });
+        if (remainingUnpaid === 0) {
+            order.status = 'paid';
+            await order.save();
+        }
+
+        // 7. DIQQAT: Yangi event! Buni hamma o'chirmasligi uchun storeId ni ham qo'shib jo'natamiz
+        req.io.emit('store_order_paid', { orderId, paidStoreId: storeId });
+
         res.json({ success: true, remainingBalance: visitor.balance });
     } catch (err) {
         res.status(500).json({ error: err.message });

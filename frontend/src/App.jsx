@@ -4,6 +4,7 @@ import ReceptionistDashboard from "./components/ReceptionistDashboard";
 import WaiterDashboard from "./components/WaiterDashboard";
 import VendorDashboard from "./components/VendorDashboard";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
+import StorekeeperDashboard from "./components/StoreKeeper";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -15,7 +16,6 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (userData) => {
-    console.log(userData);
     setUser(userData);
     localStorage.setItem("aquapark_user", JSON.stringify(userData));
   };
@@ -25,14 +25,14 @@ export default function App() {
     localStorage.removeItem("aquapark_user");
   };
 
-  // Agar foydalanuvchi login qilmagan bo'lsa, faqat login sahifasini ko'rsatish
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   // Foydalanuvchining roliga qarab tegishli dashboardni dinamik render qilish
   switch (user.role) {
-    case "superadmin":
+    case "manager":
+    case "supervisor":
       return <SuperAdminDashboard user={user} onLogout={handleLogout} />;
     case "receptionist":
       return <ReceptionistDashboard user={user} onLogout={handleLogout} />;
@@ -41,7 +41,7 @@ export default function App() {
     case "barman":
       return <VendorDashboard user={user} onLogout={handleLogout} />;
     case "storekeeper":
-      return <VendorDashboard user={user} onLogout={handleLogout} />;
+      return <StorekeeperDashboard user={user} onLogout={handleLogout} />;
     default:
       return (
         <div className="p-8 text-center">

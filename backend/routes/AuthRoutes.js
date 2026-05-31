@@ -11,7 +11,9 @@ router.post('/seed', async (req, res) => {
             const hashedSharedPassword = await bcrypt.hash('125', 10);
 
             await User.bulkCreate([
-                { username: 'admin', password: hashedSharedPassword, role: 'superadmin' },
+                // Superadmin o'rniga Manager va Supervisor yaratamiz
+                { username: 'manager', password: hashedSharedPassword, role: 'manager' },
+                { username: 'supervisor', password: hashedSharedPassword, role: 'supervisor' },
                 { username: 'recept', password: hashedSharedPassword, role: 'receptionist' },
                 { username: 'waiter', password: hashedSharedPassword, role: 'waiter' },
                 { username: 'bar', password: hashedSharedPassword, role: 'barman' }

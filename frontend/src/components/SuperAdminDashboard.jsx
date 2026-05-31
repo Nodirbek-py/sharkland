@@ -22,37 +22,33 @@ import {
 
 export default function SuperAdminDashboard({ user, onLogout }) {
   const [txs, setTxs] = useState([]);
-  const [stores, setStores] = useState([]); // Yangi filiallar ro'yxati
+  const [stores, setStores] = useState([]);
 
   const [graphPeriod, setGraphPeriod] = useState("weekly");
 
   const [analytics, setAnalytics] = useState({
     summary: { dailyIncome: 0, weeklyIncome: 0, monthlyIncome: 0 },
-    storeComparison: [], // Do'konlarni taqqoslash uchun ma'lumotlar
+    storeComparison: [],
     chartData: [],
   });
 
-  // Yangi xodim shtatlari
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("waiter");
-  const [selectedStore, setSelectedStore] = useState(""); // Xodim biriktiriladigan do'kon
+  const [selectedStore, setSelectedStore] = useState("");
   const [msg, setMsg] = useState({ text: "", isError: false });
 
-  // Yangi do'kon shtatlari
   const [storeName, setStoreName] = useState("");
   const [storeMsg, setStoreMsg] = useState({ text: "", isError: false });
 
   const fetchAllData = () => {
-    // Tranzaksiyalar tarixi
     axios
-      .get("/api/admin/transactions")
+      .get("http://localhost:5000/api/admin/transactions")
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
-    // Do'konlar ro'yxatini yuklash
     axios
-      .get("/api/admin/stores")
+      .get("http://localhost:5000/api/admin/stores")
       .then((res) => {
         setStores(res.data);
         if (res.data.length > 0) setSelectedStore(res.data[0].id);
@@ -71,32 +67,33 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     fetchAllData();
   }, []);
 
-  // Yangi do'kon/filial yaratish
   const handleCreateStore = async (e) => {
     e.preventDefault();
     setStoreMsg({ text: "", isError: false });
     try {
-      await axios.post("/api/admin/stores", {
+      await axios.post("http://localhost:5000/api/admin/stores", {
         name: storeName,
       });
       setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
       setStoreName("");
-      fetchAllData(); // Ro'yxatni yangilash
+      fetchAllData();
     } catch (err) {
       setStoreMsg({ text: "Filial qo'shishda xatolik", isError: true });
     }
   };
 
-  // Yangi xodim qo'shish funksiyasi
+  const isIndependentRole =
+    role === "receptionist" || role === "waiter" || role === "storekeeper";
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setMsg({ text: "", isError: false });
     try {
-      const res = await axios.post("/api/admin/users", {
+      const res = await axios.post("http://localhost:5000/api/admin/users", {
         username,
         password,
         role,
-        storeId: role === "receptionist" ? null : selectedStore, // Resepsionist hech qaysi do'konga kirmaydi
+        storeId: isIndependentRole ? null : selectedStore,
       });
       setMsg({ text: res.data.message, isError: false });
       setUsername("");
@@ -110,21 +107,28 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   };
 
   const totalIn = txs
-    .filter((t) => t.type === "topup")
+    ?.filter((t) => t.type === "topup")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const isIndependentRole = role === "receptionist";
+  const getStoreName = (id) => {
+    if (!id) return "Markaziy Kassa";
+    const store = stores.find((s) => s.id === id);
+    return store ? store.name : "Noma'lum Filial";
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* SHAXSIY HEADER */}
       <header className="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
         <h1 className="text-xl font-bold flex items-center gap-2">
-          <Shield className="text-red-500 w-6 h-6" /> SuperAdmin Dashboard
+          <Shield className="text-red-500 w-6 h-6" />
+          {user.role === "manager"
+            ? "Manager Dashboard"
+            : "Supervisor Dashboard"}
         </h1>
         <div className="flex items-center gap-4">
-          <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-medium">
-            Tizim boshqaruvchisi: {user?.username || "Admin"}
+          <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-medium capitalize">
+            {user.role}: {user?.username}
           </span>
           <button
             onClick={onLogout}
@@ -138,38 +142,42 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         {/* SECTION 1: DO'KONLAR VA ULARNI TAQQOSLASH */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* YANGI DO'KON YARATISH */}
-          <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-center">
-            <h3 className="font-bold mb-4 flex items-center gap-2 text-lg">
-              <Store className="w-5 h-5 text-indigo-500" /> Yangi Do'kon
-              (Filial) Ochish
-            </h3>
-            {storeMsg.text && (
-              <p
-                className={`text-xs font-bold mb-3 ${storeMsg.isError ? "text-red-600" : "text-green-600"}`}
-              >
-                {storeMsg.text}
-              </p>
-            )}
-            <form onSubmit={handleCreateStore} className="flex gap-3">
-              <input
-                required
-                placeholder="Filial nomi (masalan: Hovuz Bar)"
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-                className="border p-2.5 rounded-xl outline-none focus:border-indigo-500 text-sm flex-1"
-              />
-              <button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition"
-              >
-                Yaratish
-              </button>
-            </form>
-          </div>
+          {/* YANGI DO'KON YARATISH (Faqat Manager ko'radi) */}
+          {user.role === "manager" && (
+            <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-center">
+              <h3 className="font-bold mb-4 flex items-center gap-2 text-lg">
+                <Store className="w-5 h-5 text-indigo-500" /> Yangi Do'kon
+                (Filial) Ochish
+              </h3>
+              {storeMsg.text && (
+                <p
+                  className={`text-xs font-bold mb-3 ${storeMsg.isError ? "text-red-600" : "text-green-600"}`}
+                >
+                  {storeMsg.text}
+                </p>
+              )}
+              <form onSubmit={handleCreateStore} className="flex gap-3">
+                <input
+                  required
+                  placeholder="Filial nomi (masalan: Hovuz Bar)"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
+                  className="border p-2.5 rounded-xl outline-none focus:border-indigo-500 text-sm flex-1"
+                />
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition"
+                >
+                  Yaratish
+                </button>
+              </form>
+            </div>
+          )}
 
-          {/* DO'KONLAR SAVDOSINI TAQQOSLASH */}
-          <div className="bg-white p-6 rounded-2xl border shadow-sm">
+          {/* DO'KONLAR SAVDOSINI TAQQOSLASH (Supervisor uchun to'liq kenglikda chiqadi) */}
+          <div
+            className={`bg-white p-6 rounded-2xl border shadow-sm ${user.role !== "manager" ? "lg:col-span-2" : ""}`}
+          >
             <h3 className="font-bold mb-4 text-lg">
               Filiallar Kesimida Savdo Tahlili
             </h3>
@@ -216,7 +224,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   Kunlik Sof Savdo
                 </p>
                 <h3 className="text-2xl font-black text-emerald-600 mt-1">
-                  {analytics.summary.dailyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.dailyIncome.toLocaleString()} UZS
                 </h3>
               </div>
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
@@ -230,7 +238,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   Haftalik Sof Savdo
                 </p>
                 <h3 className="text-2xl font-black text-blue-600 mt-1">
-                  {analytics.summary.weeklyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.weeklyIncome.toLocaleString()} UZS
                 </h3>
               </div>
               <div className="bg-blue-50 p-3 rounded-2xl text-blue-600">
@@ -244,7 +252,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   Oylik Sof Savdo
                 </p>
                 <h3 className="text-2xl font-black text-violet-600 mt-1">
-                  {analytics.summary.monthlyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.monthlyIncome.toLocaleString()} UZS
                 </h3>
               </div>
               <div className="bg-violet-50 p-3 rounded-2xl text-violet-600">
@@ -255,7 +263,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between">
+          {/* GRAFIK (Manager bo'lsa 2 qism, Supervisor bo'lsa 3 qism to'liq kenglikni oladi) */}
+          <div
+            className={`bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between ${user.role === "manager" ? "lg:col-span-2" : "lg:col-span-3"}`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
                 <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
@@ -349,105 +360,108 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          {/* YANGI XODIM QO'SHISH PANEL */}
-          <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-1">
-                <UserPlus className="text-amber-500 w-5 h-5" /> Yangi Xodim
-                Qo'shish
-              </h3>
-              <p className="text-xs text-slate-400 font-medium mb-4">
-                Ofitsiant, Vendor yoki Resepsionistlarni ro'yxatga olish
-              </p>
+          {/* YANGI XODIM QO'SHISH PANEL (Faqat Manager ko'radi) */}
+          {user.role === "manager" && (
+            <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-1">
+                  <UserPlus className="text-amber-500 w-5 h-5" /> Yangi Xodim
+                  Qo'shish
+                </h3>
+                <p className="text-xs text-slate-400 font-medium mb-4">
+                  Ofitsiant, Vendor yoki Resepsionistlarni ro'yxatga olish
+                </p>
 
-              {msg.text && (
-                <div
-                  className={`p-3 rounded-xl text-xs font-bold mb-3 ${msg.isError ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}
-                >
-                  {msg.text}
-                </div>
-              )}
-
-              <form onSubmit={handleCreateUser} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    Foydalanuvchi nomi (Login)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Masalan: waiter_ali"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border p-2.5 rounded-xl outline-none focus:border-blue-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    Parol
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full border p-2.5 rounded-xl outline-none focus:border-blue-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    Tizimdagi Lavozimi (Role)
-                  </label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full border p-2.5 rounded-xl bg-white outline-none text-sm font-semibold text-slate-700 focus:border-blue-500"
+                {msg.text && (
+                  <div
+                    className={`p-3 rounded-xl text-xs font-bold mb-3 ${msg.isError ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}
                   >
-                    <option value="waiter">Ofitsiant (Waiter)</option>
-                    <option value="barman">Vendor - Bar (Barman)</option>
-                    <option value="storekeeper">
-                      Vendor - Oshxona (Storekeeper)
-                    </option>
-                    <option value="receptionist">
-                      Kassir / Resepsion (Mustaqil)
-                    </option>
-                  </select>
-                </div>
-
-                {/* DO'KON TANLASH (Faqat xodim resepsionist bo'lmasa ko'rinadi) */}
-                {!isIndependentRole && (
-                  <div>
-                    <label className="block text-xs font-bold text-indigo-500 mb-1">
-                      Biriktiriladigan Do'kon (Filial)
-                    </label>
-                    <select
-                      required
-                      value={selectedStore}
-                      onChange={(e) => setSelectedStore(e.target.value)}
-                      className="w-full border p-2.5 rounded-xl bg-indigo-50 outline-none text-sm font-bold text-indigo-900 focus:border-indigo-500"
-                    >
-                      {stores.length === 0 && (
-                        <option value="">Do'konlar mavjud emas</option>
-                      )}
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                    {msg.text}
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition mt-2 shadow-sm"
-                >
-                  Tizimga Qo'shish
-                </button>
-              </form>
+                <form onSubmit={handleCreateUser} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      Foydalanuvchi nomi (Login)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Masalan: waiter_ali"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full border p-2.5 rounded-xl outline-none focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      Parol
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full border p-2.5 rounded-xl outline-none focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      Tizimdagi Lavozimi (Role)
+                    </label>
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      className="w-full border p-2.5 rounded-xl bg-white outline-none text-sm font-semibold text-slate-700 focus:border-blue-500"
+                    >
+                      <option value="waiter">Ofitsiant (Waiter)</option>
+                      <option value="vendor">
+                        Filial Xodimi / Oshpaz (Vendor)
+                      </option>
+                      <option value="storekeeper">
+                        Bosh Omborchi (Storekeeper - Mustaqil)
+                      </option>
+                      <option value="receptionist">
+                        Kassir / Resepsion (Mustaqil)
+                      </option>
+                    </select>
+                  </div>
+
+                  {!isIndependentRole && (
+                    <div>
+                      <label className="block text-xs font-bold text-indigo-500 mb-1">
+                        Biriktiriladigan Do'kon (Filial)
+                      </label>
+                      <select
+                        required
+                        value={selectedStore}
+                        onChange={(e) => setSelectedStore(e.target.value)}
+                        className="w-full border p-2.5 rounded-xl bg-indigo-50 outline-none text-sm font-bold text-indigo-900 focus:border-indigo-500"
+                      >
+                        {stores.length === 0 && (
+                          <option value="">Do'konlar mavjud emas</option>
+                        )}
+                        {stores.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition mt-2 shadow-sm"
+                  >
+                    Tizimga Qo'shish
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* SECTION 4: AUDIT LOG */}
@@ -474,11 +488,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     {t.type === "topup" ? "Kassa Kirim" : "Sotuv"}
                   </span>
                   <span className="text-slate-500 font-medium">
-                    {/* Bu yerda vaqtincha ID yoki do'kon nomi keladi */}
-                    Filial ID:{" "}
-                    <b className="text-slate-700">
-                      {t.storeId || "Markaziy Kassa"}
-                    </b>
+                    Filial:{" "}
+                    <b className="text-slate-700">{getStoreName(t.storeId)}</b>
                   </span>
                 </div>
                 <span

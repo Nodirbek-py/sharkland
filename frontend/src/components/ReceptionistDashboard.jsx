@@ -44,7 +44,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
   const fetchVisitors = async () => {
     try {
-      const res = await axios.get("/api/visitors");
+      const res = await axios.get("http://localhost:5000/api/visitors");
       setVisitors(res.data);
     } catch (err) {
       console.error(err);
@@ -63,7 +63,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/visitors/register", {
+      await axios.post("http://localhost:5000/api/visitors/register", {
         name,
         phone,
         nfcCardId,
@@ -90,7 +90,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     };
     try {
       const res = await axios.put(
-        `/api/visitors/${editingVisitor.id}`,
+        `http://localhost:5000/api/visitors/${editingVisitor.id}`,
         payload,
       );
       if (res.data.requiresConfirmation) {
@@ -111,7 +111,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     if (!topupAmount || Number(topupAmount) <= 0)
       return alert("To'g'ri summa kiriting!");
     try {
-      await axios.post("/api/visitors/topup", {
+      await axios.post("http://localhost:5000/api/visitors/topup", {
         nfcCardId: topupVisitor.nfcCardId,
         amount: Number(topupAmount),
       });
@@ -134,7 +134,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "/api/visitors/charge-entry",
+        "http://localhost:5000/api/visitors/charge-entry",
         {
           nfcCardId: scanCardId,
           entryFee: Number(entryFee),
@@ -159,7 +159,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
   const handleDelete = async (id) => {
     if (confirm("Ushbu mijozni o'chirmoqchimisiz? (Karta bo'shatiladi)")) {
-      await axios.delete(`/api/visitors/${id}`);
+      await axios.delete(`http://localhost:5000/api/visitors/${id}`);
       fetchVisitors();
     }
   };

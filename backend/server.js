@@ -33,6 +33,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', require('./routes/AuthRoutes'));
 app.use('/api/visitors', require('./routes/VisitorRoutes'));
 app.use('/api/vendors', require('./routes/VendorRoutes'));
+app.use('/api/storekeeper', require('./routes/StoreKeeper'));
 app.use('/api/admin', require('./routes/AdminRoutes'));
 
 // Socket.io ulanishi
