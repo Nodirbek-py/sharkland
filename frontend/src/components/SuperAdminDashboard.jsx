@@ -417,7 +417,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       className="w-full border p-2.5 rounded-xl bg-white outline-none text-sm font-semibold text-slate-700 focus:border-blue-500"
                     >
                       <option value="waiter">Ofitsiant (Waiter)</option>
-                      <option value="vendor">
+                      <option value="barman">
                         Filial Xodimi / Oshpaz (Vendor)
                       </option>
                       <option value="storekeeper">
