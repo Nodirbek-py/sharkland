@@ -3,8 +3,10 @@ const router = express.Router();
 const Visitor = require('../models/Visitor');
 const Product = require('../models/Product');
 const Transaction = require('../models/Transaction');
-const Order = require('../models/Order');           // Yangi: Order modeli
-const OrderItem = require('../models/OrderItem');   // Yangi: OrderItem modeli
+const Order = require('../models/Order');
+const OrderItem = require('../models/OrderItem');
+const fs = require('fs');
+const path = require('path');
 
 // ===================================================================
 // 1. OFITSIANT VA VENDOR BUYURTMA TIZIMI (DATABASEGA O'TKAZILDI)

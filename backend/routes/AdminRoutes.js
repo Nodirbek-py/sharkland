@@ -73,7 +73,6 @@ router.get('/analytics', async (req, res) => {
         // We only calculate revenue based on 'expense' transactions (when money enters the store from a user's card)
         const txs = await Transaction.findAll({ where: { type: 'expense' } });
         const stores = await Store.findAll();
-        console.log(txs)
 
         const dailyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((s, t) => s + Number(t.amount), 0);
         const weeklyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfWeek()).reduce((s, t) => s + Number(t.amount), 0);
@@ -89,7 +88,6 @@ router.get('/analytics', async (req, res) => {
             };
         });
 
-        console.log(storeComparison)
 
         // ==========================================
         // DYNAMIC CHART DATA GENERATION

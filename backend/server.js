@@ -7,7 +7,6 @@ const { connectDB } = require('./config/db');
 
 dotenv.config();
 
-// 1. Eng birinchi bo'lib ma'lumotlar bazasini ulaymiz va modellarni yuklaymiz
 connectDB();
 
 const app = express();
@@ -16,8 +15,9 @@ const server = http.createServer(app);
 // Socket.io sozlamalari
 const io = new Server(server, {
     cors: {
-        origin: "http://165.245.209.178/", // Agar ofitsiant/vendor porti boshqa bo'lsa, uni ham qo'shing
-        methods: ["GET", "POST"]
+        origin: "http://localhost:5177",
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 

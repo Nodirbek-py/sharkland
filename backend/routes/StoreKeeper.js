@@ -10,7 +10,6 @@ router.get('/inventory', async (req, res) => {
         const products = await Product.findAll({
             order: [['storeId', 'ASC'], ['name', 'ASC']]
         });
-        console.log(products)
         res.json(products);
     } catch (err) {
         res.status(500).json({ error: err.message });

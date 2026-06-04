@@ -1,49 +1,24 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { Coffee, CheckCircle, DollarSign, Layers } from "lucide-react";
+import { Coffee, CheckCircle, DollarSign, Layers, Printer } from "lucide-react";
 import { useMemo } from "react";
-import qz from "qz-tray";
 
-const socket = io("");
+const socket = io("http://localhost:5000");
 
 async function printReceipt(order) {
   try {
-    const config = qz.configs.create("XP");
-
-    const data = [
-      "\x1B\x40", // init
-
-      "\x1B\x61\x01", // center
-      "\x1D\x21\x11", // double width+height
-      "YANGI BUYURTMA\n",
-
-      "\x1D\x21\x00",
-      "\x1B\x61\x00",
-
-      "------------------------------\n",
-
-      `Stol: ${order.tableNumber}\n`,
-
-      "------------------------------\n",
-    ];
-
-    order.items.forEach((item) => {
-      data.push(`${item.name} ---  `);
-      data.push(`  x${item.quantity}\n`);
-    });
-
-    data.push("------------------------------\n");
-
-    data.push("\x1B\x45\x01"); // bold
-    data.push(`JAMI: ${order.storeTotal.toLocaleString()} so'm\n`);
-    data.push("\x1B\x45\x00");
-
-    data.push("\n\n");
-    data.push("*****************************\n");
-    data.push("\x1D\x56\x00"); // cut
-
-    await qz.print(config, data);
+    console.log(window.api);
+    if (window.api) {
+      console.log("hey");
+      const result = await window.api.printReceipt(order);
+      if (!result.success) {
+        console.error("Printer error:", result.error);
+        alert("Printer xatosi: " + result.error);
+      }
+    } else {
+      console.warn("Electron muhitida emasmiz, print ishlamaydi.");
+    }
   } catch (err) {
     console.error(err);
   }
@@ -55,36 +30,31 @@ export default function VendorDashboard({ user, onLogout }) {
   const [cards, setCards] = useState({});
   const [quickAmount, setQuickAmount] = useState("");
   const [quickCardId, setQuickCardId] = useState("");
-
-  let qzConnectionPromise = null;
-
-  async function connectQZ() {
-    if (qz.websocket.isActive()) {
-      return;
-    }
-
-    if (!qzConnectionPromise) {
-      qzConnectionPromise = qz.websocket.connect();
-    }
-
-    await qzConnectionPromise;
-  }
+  const [printerName, setPrinterName] = useState("");
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    connectQZ()
-      .then(() => {
-        setTimeout(async () => {
-          console.log(await qz.printers.find());
-        }, 2000);
-      })
-      .catch(console.error);
-    qz.printers.find().then((res) => console.log(res));
+    if (window.api) {
+      window.api.getPrinterName().then((name) => setPrinterName(name));
+    }
   }, []);
+
+  const handleSave = async () => {
+    if (window.api) {
+      const res = await window.api.savePrinterName(printerName);
+      if (res.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000); // clear alert badge
+      } else {
+        alert("Saqlashda xatolik: " + res.error);
+      }
+    }
+  };
 
   const fetchPendingOrders = async () => {
     try {
       const res = await axios.get(
-        `/api/vendors/orders/pending?storeId=${user.storeId}`,
+        `http://localhost:5000/api/vendors/orders/pending?storeId=${user.storeId}`,
       );
       setOrders(res.data);
     } catch (err) {
@@ -141,7 +111,7 @@ export default function VendorDashboard({ user, onLogout }) {
     if (!cardId) return alert("Kartani o'qiting!");
     try {
       const res = await axios.post(
-        "/api/vendors/orders/charge-pending",
+        "http://localhost:5000/api/vendors/orders/charge-pending",
         {
           orderId,
           nfcCardId: cardId,
@@ -164,7 +134,7 @@ export default function VendorDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "/api/vendors/quick-charge",
+        "http://localhost:5000/api/vendors/quick-charge",
         {
           nfcCardId: quickCardId,
           amount: Number(quickAmount),
@@ -231,6 +201,12 @@ export default function VendorDashboard({ user, onLogout }) {
           >
             <DollarSign className="w-4 h-4" /> Tezkor To'lov
           </button>
+          <button
+            onClick={() => setActiveTab("printer")}
+            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition ${activeTab === "printer" ? "bg-white text-green-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+          >
+            <Printer className="w-4 h-4" /> Printer
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -254,7 +230,7 @@ export default function VendorDashboard({ user, onLogout }) {
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {processedOrders.map((order) => (
+                {processedOrders?.map((order) => (
                   <div
                     key={order.id}
                     className="bg-white p-5 rounded-2xl border-2 border-blue-100 shadow-sm flex flex-col justify-between"
@@ -353,6 +329,50 @@ export default function VendorDashboard({ user, onLogout }) {
                 To'lovni Tasdiqlash
               </button>
             </form>
+          </div>
+        )}
+
+        {activeTab === "printer" && (
+          <div
+            style={{
+              padding: "20px",
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+            }}
+          >
+            <h3>Printer Sozlamalari</h3>
+            <p style={{ fontSize: "12px", color: "#666" }}>
+              Mac terminalida <code>lpstat -p</code> buyrug'i orqali ko'ringan
+              nomni kiriting.
+            </p>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                type="text"
+                value={printerName}
+                onChange={(e) => setPrinterName(e.target.value)}
+                placeholder="Masalan: Xprinter_XP_58"
+                style={{
+                  padding: "8px",
+                  borderRadius: "4px",
+                  border: "1px solid #aaa",
+                  flex: 1,
+                }}
+              />
+              <button
+                onClick={handleSave}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: "#0070f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                {saved ? "Saqlandi! ✅" : "Saqlash"}
+              </button>
+            </div>
           </div>
         )}
       </main>
