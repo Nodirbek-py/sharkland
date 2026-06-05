@@ -33,7 +33,7 @@ function createWindow() {
         }
     });
 
-    mainWindow.loadURL('http://localhost:5177');
+    mainWindow.loadURL('http://165.245.209.178/');
     mainWindow.webContents.openDevTools();
 }
 

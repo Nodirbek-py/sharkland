@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // Socket.io sozlamalari
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5177",
+        origin: "http://165.245.209.178/",
         methods: ["GET", "POST"],
         credentials: true
     }
