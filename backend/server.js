@@ -35,6 +35,7 @@ app.use('/api/visitors', require('./routes/VisitorRoutes'));
 app.use('/api/vendors', require('./routes/VendorRoutes'));
 app.use('/api/storekeeper', require('./routes/StoreKeeper'));
 app.use('/api/admin', require('./routes/AdminRoutes'));
+app.use('/api/quick-charge', require('./routes/QuickChargeRoutes'));
 
 // Socket.io ulanishi
 io.on('connection', (socket) => {
