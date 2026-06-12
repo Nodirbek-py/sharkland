@@ -27,10 +27,16 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [graphPeriod, setGraphPeriod] = useState("weekly");
 
   const [analytics, setAnalytics] = useState({
-    summary: { dailyIncome: 0, weeklyIncome: 0, monthlyIncome: 0 },
+    summary: { dailyIncome: 0, weeklyIncome: 0, monthlyIncome: 0, totalIncome: 0 },
     storeComparison: [],
     chartData: [],
   });
+
+  const [waiters, setWaiters] = useState([]);
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterStoreId, setFilterStoreId] = useState("");
+  const [filterWaiter, setFilterWaiter] = useState("");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -43,25 +49,35 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const fetchAllData = () => {
     axios
-      .get("/api/admin/transactions")
+      .get("http://localhost:5000/api/admin/transactions")
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
     axios
-      .get("/api/admin/stores")
+      .get("http://localhost:5000/api/admin/stores")
       .then((res) => {
         setStores(res.data);
-        if (res.data.length > 0) setSelectedStore(res.data[0].id);
       })
+      .catch((err) => console.error(err));
+
+    axios
+      .get("http://localhost:5000/api/admin/users?role=waiter")
+      .then((res) => setWaiters(res.data))
       .catch((err) => console.error(err));
   };
 
   useEffect(() => {
+    let url = `http://localhost:5000/api/admin/analytics?period=${graphPeriod}`;
+    if (filterStartDate) url += `&startDate=${filterStartDate}`;
+    if (filterEndDate) url += `&endDate=${filterEndDate}`;
+    if (filterStoreId) url += `&storeId=${filterStoreId}`;
+    if (filterWaiter) url += `&waiterUsername=${filterWaiter}`;
+
     axios
-      .get(`/api/admin/analytics?period=${graphPeriod}`)
+      .get(url)
       .then((res) => setAnalytics(res.data))
       .catch((err) => console.error(err));
-  }, [graphPeriod]);
+  }, [graphPeriod, filterStartDate, filterEndDate, filterStoreId, filterWaiter]);
 
   useEffect(() => {
     fetchAllData();
@@ -71,7 +87,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setStoreMsg({ text: "", isError: false });
     try {
-      await axios.post("/api/admin/stores", {
+      await axios.post("http://localhost:5000/api/admin/stores", {
         name: storeName,
       });
       setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
@@ -89,7 +105,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setMsg({ text: "", isError: false });
     try {
-      const res = await axios.post("/api/admin/users", {
+      const res = await axios.post("http://localhost:5000/api/admin/users", {
         username,
         password,
         role,
@@ -183,7 +199,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             </h3>
             <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
               {analytics.storeComparison &&
-              analytics.storeComparison.length > 0 ? (
+                analytics.storeComparison.length > 0 ? (
                 analytics.storeComparison.map((store) => (
                   <div
                     key={store.storeName}
@@ -211,53 +227,83 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </div>
         </div>
 
+        {/* FILTRLAR PANELI */}
+        <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1">
+            <label className="text-xs font-bold text-slate-500 mb-1 block">Boshlanish sanasi</label>
+            <input type="date" value={filterStartDate} onChange={(e) => {setFilterStartDate(e.target.value); setGraphPeriod("custom");}} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs font-bold text-slate-500 mb-1 block">Tugash sanasi</label>
+            <input type="date" value={filterEndDate} onChange={(e) => {setFilterEndDate(e.target.value); setGraphPeriod("custom");}} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs font-bold text-slate-500 mb-1 block">Filial (Vendor)</label>
+            <select value={filterStoreId} onChange={(e) => { setFilterStoreId(e.target.value); setFilterWaiter(""); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm bg-white outline-none focus:border-blue-500">
+              <option value="">Barchasi</option>
+              {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="text-xs font-bold text-slate-500 mb-1 block">Ofitsiant</label>
+            <select value={filterWaiter} onChange={(e) => { setFilterWaiter(e.target.value); setFilterStoreId(""); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm bg-white outline-none focus:border-blue-500">
+              <option value="">Barchasi</option>
+              {waiters.map(w => <option key={w.id} value={w.username}>{w.username}</option>)}
+            </select>
+          </div>
+          <div>
+            <button onClick={() => {
+              setFilterStartDate(""); setFilterEndDate(""); setFilterStoreId(""); setFilterWaiter(""); setGraphPeriod("weekly");
+            }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition h-[38px]">
+              Tozalash
+            </button>
+          </div>
+        </div>
+
         {/* SECTION 2: DAVRIY DAROMADLAR VIDJETI */}
         <div>
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
-            <Calendar className="w-4 h-4" /> Umumiy Savdo va Daromadlar (Barcha
-            filiallar)
+            <Calendar className="w-4 h-4" /> Umumiy Savdo va Daromadlar
           </h2>
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-4 gap-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-emerald-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">
-                  Kunlik Sof Savdo
-                </p>
+                <p className="text-xs font-bold text-slate-400">Kunlik Sof Savdo</p>
                 <h3 className="text-2xl font-black text-emerald-600 mt-1">
-                  {analytics?.summary?.dailyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.dailyIncome?.toLocaleString() || 0} UZS
                 </h3>
               </div>
-              <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
-                <DollarSign />
-              </div>
+              <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><DollarSign /></div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-blue-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">
-                  Haftalik Sof Savdo
-                </p>
+                <p className="text-xs font-bold text-slate-400">Haftalik Sof Savdo</p>
                 <h3 className="text-2xl font-black text-blue-600 mt-1">
-                  {analytics?.summary?.weeklyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.weeklyIncome?.toLocaleString() || 0} UZS
                 </h3>
               </div>
-              <div className="bg-blue-50 p-3 rounded-2xl text-blue-600">
-                <TrendingUp />
-              </div>
+              <div className="bg-blue-50 p-3 rounded-2xl text-blue-600"><TrendingUp /></div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-violet-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">
-                  Oylik Sof Savdo
-                </p>
+                <p className="text-xs font-bold text-slate-400">Oylik Sof Savdo</p>
                 <h3 className="text-2xl font-black text-violet-600 mt-1">
-                  {analytics?.summary?.monthlyIncome.toLocaleString()} UZS
+                  {analytics?.summary?.monthlyIncome?.toLocaleString() || 0} UZS
                 </h3>
               </div>
-              <div className="bg-violet-50 p-3 rounded-2xl text-violet-600">
-                <Activity />
+              <div className="bg-violet-50 p-3 rounded-2xl text-violet-600"><Activity /></div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-indigo-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-indigo-400">Tanlangan Filtr bo'yicha</p>
+                <h3 className="text-2xl font-black text-indigo-600 mt-1">
+                  {analytics?.summary?.totalIncome?.toLocaleString() || 0} UZS
+                </h3>
               </div>
+              <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600"><BarChart3 /></div>
             </div>
           </div>
         </div>

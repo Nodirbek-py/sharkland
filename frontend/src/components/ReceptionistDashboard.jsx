@@ -12,6 +12,9 @@ import {
   ScanLine,
   CheckCircle2,
   AlertTriangle,
+  History,
+  Printer,
+  XCircle,
 } from "lucide-react";
 
 export default function ReceptionistDashboard({ user, onLogout }) {
@@ -38,13 +41,19 @@ export default function ReceptionistDashboard({ user, onLogout }) {
   const [entryFee, setEntryFee] = useState("50000"); // Standart bilet narxi (so'mda)
   const [chargeResult, setChargeResult] = useState(null);
 
+  // Karta tarixi uchun state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyCardId, setHistoryCardId] = useState("");
+  const [historyData, setHistoryData] = useState(null);
+  const [historyError, setHistoryError] = useState("");
+
   useEffect(() => {
     fetchVisitors();
   }, []);
 
   const fetchVisitors = async () => {
     try {
-      const res = await axios.get("/api/visitors");
+      const res = await axios.get("http://localhost:5000/api/visitors");
       setVisitors(res.data);
     } catch (err) {
       console.error(err);
@@ -63,7 +72,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/visitors/register", {
+      await axios.post("http://localhost:5000/api/visitors/register", {
         name,
         phone,
         nfcCardId,
@@ -90,7 +99,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     };
     try {
       const res = await axios.put(
-        `/api/visitors/${editingVisitor.id}`,
+        `http://localhost:5000/api/visitors/${editingVisitor.id}`,
         payload,
       );
       if (res.data.requiresConfirmation) {
@@ -111,7 +120,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     if (!topupAmount || Number(topupAmount) <= 0)
       return alert("To'g'ri summa kiriting!");
     try {
-      await axios.post("/api/visitors/topup", {
+      await axios.post("http://localhost:5000/api/visitors/topup", {
         nfcCardId: topupVisitor.nfcCardId,
         amount: Number(topupAmount),
       });
@@ -134,7 +143,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "/api/visitors/charge-entry",
+        "http://localhost:5000/api/visitors/charge-entry",
         {
           nfcCardId: scanCardId,
           entryFee: Number(entryFee),
@@ -159,18 +168,58 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
   const handleDelete = async (id) => {
     if (confirm("Ushbu mijozni o'chirmoqchimisiz? (Karta bo'shatiladi)")) {
-      await axios.delete(`/api/visitors/${id}`);
+      await axios.delete(`http://localhost:5000/api/visitors/${id}`);
       fetchVisitors();
+    }
+  };
+
+  const fetchCardHistory = async (e) => {
+    e.preventDefault();
+    setHistoryError("");
+    setHistoryData(null);
+    if (!historyCardId.trim()) return;
+
+    try {
+      const res = await axios.get(`http://localhost:5000/api/visitors/history/${historyCardId}`);
+      setHistoryData(res.data);
+    } catch (err) {
+      setHistoryError(err.response?.data?.message || "Tarixni yuklashda xatolik");
+    }
+    setHistoryCardId(""); // skanlangandan so'ng tozalash
+  };
+
+  const handlePrint = async () => {
+    // Agar Electron ichida bo'lsak, to'g'ridan to'g'ri raw printer ga yuboramiz
+    if (window.api && window.api.printHistory) {
+      const res = await window.api.printHistory(historyData);
+      if (!res.success) {
+        alert("Printer xatosi: " + res.error);
+        window.print(); // Agar xato bo'lsa standart chop etishga o'tish
+      }
+    } else {
+      // Agar brauzerda (Safari/Chrome) bo'lsak standart print
+      window.print();
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 relative">
-      <header className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
+      <header className="bg-white border-b p-4 flex justify-between items-center shadow-sm print:hidden">
         <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
           <CreditCard className="text-blue-600" /> Qabul Bo'limi (Receptionist)
         </h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setShowHistoryModal(true);
+              setHistoryData(null);
+              setHistoryError("");
+              setHistoryCardId("");
+            }}
+            className="flex items-center gap-1.5 text-sm font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-xl transition print:hidden"
+          >
+            <History className="w-4 h-4" /> Tarix
+          </button>
           {/* Rejimlar o'rtasida o'tish tugmasi */}
           <button
             onClick={() => {
@@ -195,7 +244,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6 print:hidden">
         {scanMode ? (
           /* =================================================== */
           /* NEW FEATURE VIEW: KIRISHNI SKANERLASH VA HAQ YECHISH */
@@ -569,6 +618,96 @@ export default function ReceptionistDashboard({ user, onLogout }) {
                 Bekor qilish
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TARIX MODALI */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4 print:static print:bg-white print:p-0">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 relative print:shadow-none print:w-full print:max-w-none print:p-0">
+            {/* Modal yopish tugmasi */}
+            <button 
+              onClick={() => setShowHistoryModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 print:hidden"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+
+            {/* Print Settings uchun maxsus CSS (Header/Footer ni o'chiradi) */}
+            <style type="text/css" media="print">
+              {`
+                @page { margin: 0; }
+                body { margin: 1cm; }
+              `}
+            </style>
+
+            <h3 className="text-xl font-bold text-slate-800 mb-4 print:text-center print:text-2xl print:mb-2">
+              Xaridlar Tarixi (Bugun)
+            </h3>
+
+            {!historyData ? (
+              <form onSubmit={fetchCardHistory} className="print:hidden">
+                <p className="text-sm text-slate-500 mb-2">Mijoz kartasini skanerlang:</p>
+                <input
+                  type="text"
+                  autoFocus
+                  value={historyCardId}
+                  onChange={(e) => setHistoryCardId(e.target.value)}
+                  className="w-full border p-3 rounded-xl font-mono bg-slate-50 text-center mb-3 outline-none focus:border-blue-500"
+                  placeholder="Karta kodi..."
+                />
+                {historyError && <p className="text-red-500 text-sm font-bold text-center mb-3">{historyError}</p>}
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition">
+                  Tekshirish
+                </button>
+              </form>
+            ) : (
+              <div>
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl mb-4 text-center print:bg-transparent print:border-b print:border-dashed print:border-black print:rounded-none print:p-2">
+                  <p className="font-bold text-lg print:text-sm">{historyData.visitor.name}</p>
+                  <p className="text-sm print:text-xs">Joriy balans: <span className="font-black text-xl print:text-sm">{Number(historyData.visitor.balance).toLocaleString()} so'm</span></p>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto pr-2 print:max-h-none print:overflow-visible space-y-3 mb-4">
+                  {historyData.transactions.length === 0 ? (
+                    <p className="text-slate-400 text-center py-4 print:text-sm">Bugun xaridlar qilinmagan.</p>
+                  ) : (
+                    historyData.transactions.map((tx) => (
+                      <div key={tx.id} className="flex justify-between items-center border-b pb-2 print:border-dashed print:border-black print:pb-1 print:mb-1">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800 print:text-xs">{tx.location}</p>
+                          <p className="text-xs text-slate-500 print:text-[10px]">{new Date(tx.createdAt).toLocaleTimeString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-black ${tx.type === 'expense' ? 'text-red-600' : 'text-green-600'} print:text-black print:text-xs`}>
+                            {tx.type === 'expense' ? '-' : '+'}{Number(tx.amount).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex gap-3 print:hidden">
+                  <button
+                    onClick={() => {
+                      setHistoryData(null);
+                      setHistoryCardId("");
+                    }}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition"
+                  >
+                    Boshqa Karta
+                  </button>
+                  <button
+                    onClick={handlePrint}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition shadow-md"
+                  >
+                    <Printer className="w-5 h-5" /> Chop Etish
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

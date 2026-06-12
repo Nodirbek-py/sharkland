@@ -34,7 +34,6 @@ function createWindow() {
     });
 
     mainWindow.loadURL('http://165.245.209.178/');
-    mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
@@ -89,7 +88,16 @@ ipcMain.handle('print-receipt', async (event, order) => {
         // 👇 FETCH THE DYNAMIC NAME INSTEAD OF HARDCODING 👇
         const printerName = getSavedPrinterName();
 
-        const command = `lp -d ${printerName} -o raw "${tempFilePath}"`;
+        const isWin = process.platform === 'win32';
+        let command, fallbackCommand;
+
+        if (isWin) {
+            command = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer -Name '${printerName}'"`;
+            fallbackCommand = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer"`;
+        } else {
+            command = `lp -d "${printerName}" -o raw "${tempFilePath}"`;
+            fallbackCommand = `lp -o raw "${tempFilePath}"`;
+        }
 
         return new Promise((resolve) => {
             exec(command, (error) => {
@@ -98,7 +106,80 @@ ipcMain.handle('print-receipt', async (event, order) => {
                 if (error) {
                     console.warn(`Printing to ${printerName} failed, falling back to default...`);
                     // System default fallback
-                    exec(`lp -o raw "${tempFilePath}"`, (fallbackError) => {
+                    exec(fallbackCommand, (fallbackError) => {
+                        if (fallbackError) resolve({ success: false, error: fallbackError.message });
+                        else resolve({ success: true });
+                    });
+                } else {
+                    resolve({ success: true });
+                }
+            });
+        });
+
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Print handler for Receptionist Card History
+ipcMain.handle('print-history', async (event, historyData) => {
+    try {
+        let printer = new ThermalPrinter({
+            type: PrinterTypes.EPSON,
+            width: 32,
+            characterSet: 'PC858_EURO',
+            interface: 'placeholder'
+        });
+
+        printer.alignCenter();
+        printer.setTextDoubleHeight();
+        printer.setTextDoubleWidth();
+        printer.println("KARTA TARIXI");
+        printer.drawLine();
+        printer.setTextNormal();
+        printer.println(`Ism: ${historyData.visitor.name}`);
+        printer.println(`Balans: ${Number(historyData.visitor.balance).toLocaleString()} so'm`);
+        printer.drawLine();
+
+        if (!historyData.transactions || historyData.transactions.length === 0) {
+            printer.println("Bugun xarid qilinmagan.");
+        } else {
+            historyData.transactions.forEach((tx) => {
+                const time = new Date(tx.createdAt).toLocaleTimeString();
+                printer.println(`${tx.location} (${time})`);
+                const sign = tx.type === 'expense' ? '-' : '+';
+                printer.alignRight();
+                printer.println(`${sign}${Number(tx.amount).toLocaleString()} so'm`);
+                printer.alignLeft();
+            });
+        }
+
+        printer.drawLine();
+        printer.partialCut();
+
+        const buffer = printer.getBuffer();
+        const tempFilePath = path.join(app.getPath('home'), '.history_print.bin');
+        fs.writeFileSync(tempFilePath, buffer);
+
+        const printerName = getSavedPrinterName();
+        const isWin = process.platform === 'win32';
+        let command, fallbackCommand;
+
+        if (isWin) {
+            command = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer -Name '${printerName}'"`;
+            fallbackCommand = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer"`;
+        } else {
+            command = `lp -d "${printerName}" -o raw "${tempFilePath}"`;
+            fallbackCommand = `lp -o raw "${tempFilePath}"`;
+        }
+
+        return new Promise((resolve) => {
+            exec(command, (error) => {
+                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+
+                if (error) {
+                    console.warn(`Printing to ${printerName} failed, falling back to default...`);
+                    exec(fallbackCommand, (fallbackError) => {
                         if (fallbackError) resolve({ success: false, error: fallbackError.message });
                         else resolve({ success: true });
                     });

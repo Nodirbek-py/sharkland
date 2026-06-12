@@ -4,13 +4,12 @@ import { io } from "socket.io-client";
 import { Coffee, CheckCircle, DollarSign, Layers, Printer } from "lucide-react";
 import { useMemo } from "react";
 
-const socket = io("");
+const socket = io("http://localhost:5000");
 
 async function printReceipt(order) {
   try {
     console.log(window.api);
     if (window.api) {
-      console.log("hey");
       const result = await window.api.printReceipt(order);
       if (!result.success) {
         console.error("Printer error:", result.error);
@@ -54,7 +53,7 @@ export default function VendorDashboard({ user, onLogout }) {
   const fetchPendingOrders = async () => {
     try {
       const res = await axios.get(
-        `/api/vendors/orders/pending?storeId=${user.storeId}`,
+        `http://localhost:5000/api/vendors/orders/pending?storeId=${user.storeId}`,
       );
       setOrders(res.data);
     } catch (err) {
@@ -111,7 +110,7 @@ export default function VendorDashboard({ user, onLogout }) {
     if (!cardId) return alert("Kartani o'qiting!");
     try {
       const res = await axios.post(
-        "/api/vendors/orders/charge-pending",
+        "http://localhost:5000/api/vendors/orders/charge-pending",
         {
           orderId,
           nfcCardId: cardId,
@@ -134,7 +133,7 @@ export default function VendorDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "/api/vendors/quick-charge",
+        "http://localhost:5000/api/vendors/quick-charge",
         {
           nfcCardId: quickCardId,
           amount: Number(quickAmount),
@@ -264,24 +263,44 @@ export default function VendorDashboard({ user, onLogout }) {
                       </div>
                     </div>
                     <div className="border-t pt-3 mt-4">
-                      <p className="font-black text-slate-900 text-lg mb-3">
-                        {order.storeTotal.toLocaleString()} so'm
-                      </p>
-                      <input
-                        type="text"
-                        placeholder="Karta readerga tekkazing"
-                        value={cards[order.id] || ""}
-                        onChange={(e) =>
-                          setCards({ ...cards, [order.id]: e.target.value })
-                        }
-                        className="w-full border p-2.5 rounded-xl text-center font-mono bg-amber-50 text-sm mb-2 outline-none"
-                      />
-                      <button
-                        onClick={() => handleCharge(order.id)}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition"
-                      >
-                        <CheckCircle className="w-4 h-4" /> To'lovni Yopish
-                      </button>
+                      {order.items[0]?.isPaid ? (
+                        <>
+                          <div className="bg-green-100 text-green-800 p-2 mb-2 rounded-xl font-bold text-center text-sm flex items-center justify-center gap-1">
+                            <CheckCircle className="w-4 h-4" /> To'langan (Naqd)
+                          </div>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await axios.post("http://localhost:5000/api/vendors/orders/mark-done", { orderId: order.id, storeId: user.storeId });
+                              } catch(err) { alert("Xatolik: " + err?.response?.data?.message || err.message); }
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-sm transition"
+                          >
+                            Tayyor (Yopish)
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-black text-slate-900 text-lg mb-3">
+                            {order.storeTotal.toLocaleString()} so'm
+                          </p>
+                          <input
+                            type="text"
+                            placeholder="Karta readerga tekkazing"
+                            value={cards[order.id] || ""}
+                            onChange={(e) =>
+                              setCards({ ...cards, [order.id]: e.target.value })
+                            }
+                            className="w-full border p-2.5 rounded-xl text-center font-mono bg-amber-50 text-sm mb-2 outline-none"
+                          />
+                          <button
+                            onClick={() => handleCharge(order.id)}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition"
+                          >
+                            <CheckCircle className="w-4 h-4" /> To'lovni Yopish
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
