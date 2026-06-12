@@ -12,6 +12,10 @@ const OrderItem = sequelize.define('OrderItem', {
     isPaid: {
         type: DataTypes.BOOLEAN,
         defaultValue: false
+    },
+    isPrepared: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     }
 });
 

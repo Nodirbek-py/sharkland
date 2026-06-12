@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const Store = require('../models/Store'); // NEW
+const Store = require('../models/Store');
+const Order = require('../models/Order'); // NEW
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
 
@@ -52,6 +53,23 @@ router.post('/users', async (req, res) => {
     }
 });
 
+router.get('/users', async (req, res) => {
+    try {
+        const { role } = req.query;
+        let whereClause = {};
+        if (role) {
+            whereClause.role = role;
+        }
+        const users = await User.findAll({ 
+            where: whereClause,
+            attributes: ['id', 'username', 'role', 'storeId']
+        });
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/transactions', async (req, res) => {
     try {
         const transactions = await Transaction.findAll({ order: [['createdAt', 'DESC']] });
@@ -64,83 +82,133 @@ router.get('/transactions', async (req, res) => {
 // --- ANALYTICS & STORE COMPARISON ---
 router.get('/analytics', async (req, res) => {
     try {
-        const { period } = req.query;
+        const { period, startDate, endDate, storeId, waiterUsername } = req.query;
+
+        let start, end;
+        const now = new Date();
+
+        if (startDate && endDate) {
+            start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+        } else {
+            start = new Date();
+            start.setHours(0, 0, 0, 0);
+            end = new Date();
+            if (period === 'weekly') {
+                start.setDate(start.getDate() - start.getDay());
+            } else if (period === 'monthly') {
+                start = new Date(start.getFullYear(), start.getMonth(), 1);
+            }
+        }
+
+        let txs = [];
+        let orders = [];
+
+        if (waiterUsername) {
+            orders = await Order.findAll({ 
+                where: { 
+                    waiterUsername, 
+                    status: 'paid',
+                    createdAt: { [Op.between]: [start, end] }
+                } 
+            });
+        } else {
+            let txWhere = { type: 'expense', createdAt: { [Op.between]: [start, end] } };
+            if (storeId) {
+                txWhere.storeId = storeId;
+            }
+            txs = await Transaction.findAll({ where: txWhere });
+        }
+
+        const stores = await Store.findAll();
+
+        let totalIncome = 0;
+        if (waiterUsername) {
+            totalIncome = orders.reduce((s, o) => s + Number(o.totalAmount), 0);
+        } else {
+            totalIncome = txs.reduce((s, t) => s + Number(t.amount), 0);
+        }
+
+        let storeComparison = [];
+        if (!waiterUsername && !storeId) {
+            storeComparison = stores.map(store => {
+                const storeSales = txs.filter(t => t.storeId === store.id);
+                return {
+                    storeName: store.name,
+                    totalSales: storeSales.reduce((sum, t) => sum + Number(t.amount), 0),
+                    dailySales: storeSales.filter(t => {
+                        const d = new Date(t.createdAt);
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        return d >= today;
+                    }).reduce((sum, t) => sum + Number(t.amount), 0)
+                };
+            });
+        }
+
+        let chartData = [];
+        
+        const getSum = (t_start, t_end) => {
+            if (waiterUsername) {
+                return orders.filter(o => {
+                    const d = new Date(o.createdAt);
+                    return d >= t_start && d < t_end;
+                }).reduce((s, o) => s + Number(o.totalAmount), 0);
+            } else {
+                return txs.filter(t => {
+                    const d = new Date(t.createdAt);
+                    return d >= t_start && d < t_end;
+                }).reduce((s, t) => s + Number(t.amount), 0);
+            }
+        };
+
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+        if (diffDays <= 1) {
+            for (let i = 0; i <= 23; i++) {
+                const t_start = new Date(start); t_start.setHours(i, 0, 0, 0);
+                const t_end = new Date(start); t_end.setHours(i + 1, 0, 0, 0);
+                chartData.push({ label: `${i}:00`, daromad: getSum(t_start, t_end) });
+            }
+        } else if (diffDays <= 31) {
+            for (let i = 0; i < diffDays; i++) {
+                const t_start = new Date(start); t_start.setDate(t_start.getDate() + i); t_start.setHours(0, 0, 0, 0);
+                const t_end = new Date(t_start); t_end.setDate(t_end.getDate() + 1);
+                chartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, daromad: getSum(t_start, t_end) });
+            }
+        } else {
+            const startMonth = start.getMonth();
+            const endMonth = end.getMonth() + (end.getFullYear() - start.getFullYear()) * 12;
+            for (let i = startMonth; i <= endMonth; i++) {
+                const t_start = new Date(start.getFullYear(), i, 1);
+                const t_end = new Date(start.getFullYear(), i + 1, 1);
+                chartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, daromad: getSum(t_start, t_end) });
+            }
+        }
 
         const getStartOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
         const getStartOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return d; };
         const getStartOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
 
-        // We only calculate revenue based on 'expense' transactions (when money enters the store from a user's card)
-        const txs = await Transaction.findAll({ where: { type: 'expense' } });
-        const stores = await Store.findAll();
-
-        const dailyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((s, t) => s + Number(t.amount), 0);
-        const weeklyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfWeek()).reduce((s, t) => s + Number(t.amount), 0);
-        const monthlyIncome = txs.filter(t => new Date(t.createdAt) >= getStartOfMonth()).reduce((s, t) => s + Number(t.amount), 0);
-
-        // Store comparison data
-        const storeComparison = stores.map(store => {
-            const storeSales = txs.filter(t => t.storeId === store.id);
-            return {
-                storeName: store.name,
-                totalSales: storeSales.reduce((sum, t) => sum + Number(t.amount), 0),
-                dailySales: storeSales.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((sum, t) => sum + Number(t.amount), 0)
-            };
-        });
-
-
-        // ==========================================
-        // DYNAMIC CHART DATA GENERATION
-        // ==========================================
-        let chartData = [];
-        const now = new Date();
-
-        if (period === 'daily') {
-            for (let i = 0; i <= now.getHours(); i++) {
-                const hourSales = txs.filter(t => {
-                    const d = new Date(t.createdAt);
-                    return d >= getStartOfDay() && d.getHours() === i;
-                }).reduce((sum, t) => sum + Number(t.amount), 0);
-
-                chartData.push({ label: `${i}:00`, daromad: hourSales });
-            }
-        }
-        else if (period === 'weekly') {
-            const daysOfWeek = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Juma', 'Shan'];
-            for (let i = 6; i >= 0; i--) {
-                const targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() - i);
-                targetDate.setHours(0, 0, 0, 0);
-
-                const nextDay = new Date(targetDate);
-                nextDay.setDate(nextDay.getDate() + 1);
-
-                const daySales = txs.filter(t => {
-                    const d = new Date(t.createdAt);
-                    return d >= targetDate && d < nextDay;
-                }).reduce((sum, t) => sum + Number(t.amount), 0);
-
-                chartData.push({ label: daysOfWeek[targetDate.getDay()], daromad: daySales });
-            }
-        }
-        else if (period === 'monthly') {
-            for (let i = 1; i <= now.getDate(); i++) {
-                const targetDate = new Date(now.getFullYear(), now.getMonth(), i);
-                const nextDay = new Date(now.getFullYear(), now.getMonth(), i + 1);
-
-                const daySales = txs.filter(t => {
-                    const d = new Date(t.createdAt);
-                    return d >= targetDate && d < nextDay;
-                }).reduce((sum, t) => sum + Number(t.amount), 0);
-
-                chartData.push({ label: `${i}-kun`, daromad: daySales });
-            }
+        let dailyIncome = 0, weeklyIncome = 0, monthlyIncome = 0;
+        if (!waiterUsername && !storeId && (!startDate && !endDate)) {
+            const allTxs = await Transaction.findAll({ where: { type: 'expense' } });
+            dailyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((s, t) => s + Number(t.amount), 0);
+            weeklyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfWeek()).reduce((s, t) => s + Number(t.amount), 0);
+            monthlyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfMonth()).reduce((s, t) => s + Number(t.amount), 0);
         }
 
         res.json({
-            summary: { dailyIncome, weeklyIncome, monthlyIncome },
+            summary: { 
+                dailyIncome: (!waiterUsername && !storeId && !startDate) ? dailyIncome : totalIncome, 
+                weeklyIncome: (!waiterUsername && !storeId && !startDate) ? weeklyIncome : 0, 
+                monthlyIncome: (!waiterUsername && !storeId && !startDate) ? monthlyIncome : 0,
+                totalIncome
+            },
             storeComparison,
-            chartData // Yaratilgan ma'lumotlarni frontga jo'natamiz
+            chartData
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

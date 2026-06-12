@@ -23,7 +23,7 @@ router.get('/products/all', async (req, res) => {
 });
 
 router.post('/orders/place', async (req, res) => {
-    const { items, location, totalAmount, tableNumber, waiterUsername } = req.body;
+    const { items, location, totalAmount, tableNumber, waiterUsername, paidOnSpot } = req.body;
 
     try {
         // 1. Asosiy bitta buyurtmani yaratish
@@ -53,7 +53,8 @@ router.post('/orders/place', async (req, res) => {
                 priceAtPurchase: Number(item.price),
                 quantity: Number(item.quantity),
                 vendorUsername: product.vendorUsername,
-                storeId: product.storeId // <--- Maxsulot o'zining do'koniga yo'naltiriladi
+                storeId: product.storeId,
+                isPaid: paidOnSpot ? true : false
             });
         }
 
@@ -81,7 +82,7 @@ router.get('/orders/pending', async (req, res) => {
     const { storeId } = req.query;
 
     try {
-        let itemFilter = {};
+        let itemFilter = { isPrepared: false };
         if (storeId) {
             itemFilter.storeId = storeId;
         }
@@ -90,9 +91,9 @@ router.get('/orders/pending', async (req, res) => {
             where: { status: 'pending' },
             include: [{
                 model: OrderItem,
-                as: 'OrderItems', // Yoki modelingizdagi bog'lanish nomi (masalan: 'items')
-                where: itemFilter, // Faqat shu do'konga tegishli maxsulotlarni oladi
-                required: storeId ? true : false // Faqat shu do'konning maxsuloti bor orderlarni qaytaradi
+                as: 'OrderItems', 
+                where: itemFilter, 
+                required: true 
             }],
             order: [['createdAt', 'DESC']]
         });
@@ -139,9 +140,10 @@ router.post('/orders/charge-pending', async (req, res) => {
         visitor.balance = Number(visitor.balance) - storeTotal;
         await visitor.save();
 
-        // 4. Shu mahsulotlarni to'langan deb belgilash
+        // 4. Shu mahsulotlarni to'langan va tayyor deb belgilash
         for (let item of items) {
             item.isPaid = true;
+            item.isPrepared = true;
             await item.save();
         }
 
@@ -154,9 +156,9 @@ router.post('/orders/charge-pending', async (req, res) => {
             storeId: storeId
         });
 
-        // 6. Agar butun orderdagi HAMMA narsa to'langan bo'lsa, asosiy orderni ham yopamiz
-        const remainingUnpaid = await OrderItem.count({ where: { orderId: order.id, isPaid: false } });
-        if (remainingUnpaid === 0) {
+        // 6. Agar butun orderdagi HAMMA narsa tayyor bo'lsa, asosiy orderni ham yopamiz
+        const remainingUnprepared = await OrderItem.count({ where: { orderId: order.id, isPrepared: false } });
+        if (remainingUnprepared === 0) {
             order.status = 'paid';
             await order.save();
         }
@@ -165,6 +167,32 @@ router.post('/orders/charge-pending', async (req, res) => {
         req.io.emit('store_order_paid', { orderId, paidStoreId: storeId });
 
         res.json({ success: true, remainingBalance: visitor.balance });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// To'langan buyurtmani "Tayyor" deb belgilash
+router.post('/orders/mark-done', async (req, res) => {
+    const { orderId, storeId } = req.body;
+    try {
+        const order = await Order.findByPk(orderId);
+        if (!order) return res.status(404).json({ message: "Buyurtma topilmadi." });
+
+        const items = await OrderItem.findAll({ where: { orderId: order.id, storeId: storeId } });
+        for (let item of items) {
+            item.isPrepared = true;
+            await item.save();
+        }
+
+        const remainingUnprepared = await OrderItem.count({ where: { orderId: order.id, isPrepared: false } });
+        if (remainingUnprepared === 0) {
+            order.status = 'paid';
+            await order.save();
+        }
+
+        req.io.emit('store_order_paid', { orderId, paidStoreId: storeId });
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

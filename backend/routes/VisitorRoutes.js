@@ -176,5 +176,44 @@ router.post('/charge-entry', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// 6. Karta tarixi (Faqat bugungi kungi xaridlar va to'lovlar)
+router.get('/history/:nfcCardId', async (req, res) => {
+    try {
+        const { Op } = require('sequelize');
+        const visitor = await Visitor.findOne({ where: { nfcCardId: req.params.nfcCardId } });
+        
+        if (!visitor) {
+            return res.status(404).json({ message: "Karta egasi topilmadi." });
+        }
+
+        // Bugungi kunning boshi va oxiri
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const transactions = await Transaction.findAll({
+            where: {
+                visitorId: visitor.id,
+                createdAt: {
+                    [Op.gte]: startOfDay,
+                    [Op.lte]: endOfDay
+                }
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.json({
+            visitor: {
+                name: visitor.name,
+                balance: visitor.balance
+            },
+            transactions
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;
