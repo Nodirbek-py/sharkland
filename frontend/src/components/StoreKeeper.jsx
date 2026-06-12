@@ -20,7 +20,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const fetchInventory = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/storekeeper/inventory",
+        "/api/storekeeper/inventory",
       );
       setInventory(res.data);
     } catch (err) {
@@ -31,7 +31,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const fetchAlerts = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/storekeeper/inventory/alerts",
+        "/api/storekeeper/inventory/alerts",
       );
       setAlerts(res.data);
     } catch (err) {
@@ -41,7 +41,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
 
   const fetchStores = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/stores"); // Ensure this endpoint exists
+      const res = await axios.get("/api/admin/stores"); // Ensure this endpoint exists
       setAvailableStores(res.data);
     } catch (err) {
       console.error("Do'konlarni yuklashda xatolik", err);
@@ -71,12 +71,12 @@ export default function StorekeeperDashboard({ user, onLogout }) {
     try {
       if (editingProduct) {
         await axios.put(
-          `http://localhost:5000/api/storekeeper/inventory/${editingProduct.id}`,
+          `/api/storekeeper/inventory/${editingProduct.id}`,
           payload,
         );
       } else {
         await axios.post(
-          `http://localhost:5000/api/storekeeper/inventory`,
+          `/api/storekeeper/inventory`,
           payload,
         );
       }

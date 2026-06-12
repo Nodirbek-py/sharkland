@@ -53,7 +53,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
   const fetchVisitors = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/visitors");
+      const res = await axios.get("/api/visitors");
       setVisitors(res.data);
     } catch (err) {
       console.error(err);
@@ -72,7 +72,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("http://localhost:5000/api/visitors/register", {
+      await axios.post("/api/visitors/register", {
         name,
         phone,
         nfcCardId,
@@ -99,7 +99,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     };
     try {
       const res = await axios.put(
-        `http://localhost:5000/api/visitors/${editingVisitor.id}`,
+        `/api/visitors/${editingVisitor.id}`,
         payload,
       );
       if (res.data.requiresConfirmation) {
@@ -120,7 +120,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     if (!topupAmount || Number(topupAmount) <= 0)
       return alert("To'g'ri summa kiriting!");
     try {
-      await axios.post("http://localhost:5000/api/visitors/topup", {
+      await axios.post("/api/visitors/topup", {
         nfcCardId: topupVisitor.nfcCardId,
         amount: Number(topupAmount),
       });
@@ -143,7 +143,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/visitors/charge-entry",
+        "/api/visitors/charge-entry",
         {
           nfcCardId: scanCardId,
           entryFee: Number(entryFee),
@@ -168,7 +168,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
 
   const handleDelete = async (id) => {
     if (confirm("Ushbu mijozni o'chirmoqchimisiz? (Karta bo'shatiladi)")) {
-      await axios.delete(`http://localhost:5000/api/visitors/${id}`);
+      await axios.delete(`/api/visitors/${id}`);
       fetchVisitors();
     }
   };
@@ -180,7 +180,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
     if (!historyCardId.trim()) return;
 
     try {
-      const res = await axios.get(`http://localhost:5000/api/visitors/history/${historyCardId}`);
+      const res = await axios.get(`/api/visitors/history/${historyCardId}`);
       setHistoryData(res.data);
     } catch (err) {
       setHistoryError(err.response?.data?.message || "Tarixni yuklashda xatolik");
@@ -627,7 +627,7 @@ export default function ReceptionistDashboard({ user, onLogout }) {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4 print:static print:bg-white print:p-0">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 relative print:shadow-none print:w-full print:max-w-none print:p-0">
             {/* Modal yopish tugmasi */}
-            <button 
+            <button
               onClick={() => setShowHistoryModal(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 print:hidden"
             >

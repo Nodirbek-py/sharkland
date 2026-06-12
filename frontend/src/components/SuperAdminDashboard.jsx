@@ -49,25 +49,25 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const fetchAllData = () => {
     axios
-      .get("http://localhost:5000/api/admin/transactions")
+      .get("/api/admin/transactions")
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
     axios
-      .get("http://localhost:5000/api/admin/stores")
+      .get("/api/admin/stores")
       .then((res) => {
         setStores(res.data);
       })
       .catch((err) => console.error(err));
 
     axios
-      .get("http://localhost:5000/api/admin/users?role=waiter")
+      .get("/api/admin/users?role=waiter")
       .then((res) => setWaiters(res.data))
       .catch((err) => console.error(err));
   };
 
   useEffect(() => {
-    let url = `http://localhost:5000/api/admin/analytics?period=${graphPeriod}`;
+    let url = `/api/admin/analytics?period=${graphPeriod}`;
     if (filterStartDate) url += `&startDate=${filterStartDate}`;
     if (filterEndDate) url += `&endDate=${filterEndDate}`;
     if (filterStoreId) url += `&storeId=${filterStoreId}`;
@@ -87,7 +87,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setStoreMsg({ text: "", isError: false });
     try {
-      await axios.post("http://localhost:5000/api/admin/stores", {
+      await axios.post("/api/admin/stores", {
         name: storeName,
       });
       setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
@@ -105,7 +105,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setMsg({ text: "", isError: false });
     try {
-      const res = await axios.post("http://localhost:5000/api/admin/users", {
+      const res = await axios.post("/api/admin/users", {
         username,
         password,
         role,
@@ -231,11 +231,11 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="text-xs font-bold text-slate-500 mb-1 block">Boshlanish sanasi</label>
-            <input type="date" value={filterStartDate} onChange={(e) => {setFilterStartDate(e.target.value); setGraphPeriod("custom");}} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
+            <input type="date" value={filterStartDate} onChange={(e) => { setFilterStartDate(e.target.value); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
           </div>
           <div className="flex-1">
             <label className="text-xs font-bold text-slate-500 mb-1 block">Tugash sanasi</label>
-            <input type="date" value={filterEndDate} onChange={(e) => {setFilterEndDate(e.target.value); setGraphPeriod("custom");}} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
+            <input type="date" value={filterEndDate} onChange={(e) => { setFilterEndDate(e.target.value); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm outline-none focus:border-blue-500" />
           </div>
           <div className="flex-1">
             <label className="text-xs font-bold text-slate-500 mb-1 block">Filial (Vendor)</label>
