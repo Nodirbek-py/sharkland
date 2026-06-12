@@ -57,6 +57,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       .get("/api/admin/stores")
       .then((res) => {
         setStores(res.data);
+        if (res.data.length > 0) setSelectedStore(res.data[0].id);
       })
       .catch((err) => console.error(err));
 

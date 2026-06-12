@@ -37,8 +37,13 @@ router.post('/users', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Receptionists don't need a storeId
-        const finalStoreId = (role === 'receptionist' || role === 'superadmin' || role === 'waiter') ? null : storeId;
+        // Receptionists, waiters, storekeepers don't need a storeId
+        let finalStoreId = (role === 'receptionist' || role === 'superadmin' || role === 'waiter' || role === 'storekeeper') ? null : storeId;
+        
+        if (finalStoreId === "") finalStoreId = null;
+        if (!finalStoreId && role === 'barman') {
+            return res.status(400).json({ message: "Vendor (Filial xodimi) uchun filial tanlanishi majburiy!" });
+        }
 
         const newUser = await User.create({
             username,
