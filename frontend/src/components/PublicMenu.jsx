@@ -20,11 +20,12 @@ export default function PublicMenu() {
     fetchMenu();
   }, []);
 
-  const categories = ["all", ...new Set(menuItems.map(item => item.category))];
+  const itemsWithImages = menuItems.filter(item => item.imageUrl);
+  const categories = ["all", ...new Set(itemsWithImages.map(item => item.category))];
 
   const filteredItems = activeCategory === "all"
-    ? menuItems
-    : menuItems.filter(item => item.category === activeCategory);
+    ? itemsWithImages
+    : itemsWithImages.filter(item => item.category === activeCategory);
 
   if (loading) {
     return (
