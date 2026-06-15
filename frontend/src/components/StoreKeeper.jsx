@@ -23,7 +23,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const fetchInventory = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/storekeeper/inventory",
+        "/api/storekeeper/inventory",
       );
       setInventory(res.data);
     } catch (err) {
@@ -34,7 +34,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const fetchAlerts = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/storekeeper/inventory/alerts",
+        "/api/storekeeper/inventory/alerts",
       );
       setAlerts(res.data);
     } catch (err) {
@@ -44,7 +44,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
 
   const fetchStores = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/stores"); // Ensure this endpoint exists
+      const res = await axios.get("/api/admin/stores"); // Ensure this endpoint exists
       setAvailableStores(res.data);
     } catch (err) {
       console.error("Do'konlarni yuklashda xatolik", err);
@@ -54,7 +54,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const fetchLogs = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/storekeeper/inventory/logs",
+        "/api/storekeeper/inventory/logs",
       );
       setLogs(res.data);
     } catch (err) {
@@ -99,13 +99,13 @@ export default function StorekeeperDashboard({ user, onLogout }) {
     try {
       if (editingProduct) {
         await axios.put(
-          `http://localhost:5000/api/storekeeper/inventory/${editingProduct.id}`,
+          `/api/storekeeper/inventory/${editingProduct.id}`,
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         );
       } else {
         await axios.post(
-          `http://localhost:5000/api/storekeeper/inventory`,
+          `/api/storekeeper/inventory`,
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         );
@@ -132,7 +132,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const handleDeleteProduct = async (id) => {
     if (!window.confirm("Rostdan ham bu mahsulotni o'chirmoqchimisiz?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/storekeeper/inventory/${id}?username=${user.username}`);
+      await axios.delete(`/api/storekeeper/inventory/${id}?username=${user.username}`);
       fetchInventory();
       fetchAlerts();
       fetchLogs();
@@ -369,7 +369,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
                     </tr>
                   ))}
                   {(activeTab === "all" ? inventory : alerts).length === 0 && (
-                     <tr><td colSpan="4" className="text-center py-4 text-slate-500">Ma'lumot topilmadi.</td></tr>
+                    <tr><td colSpan="4" className="text-center py-4 text-slate-500">Ma'lumot topilmadi.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -384,11 +384,10 @@ export default function StorekeeperDashboard({ user, onLogout }) {
                   <div key={log.id} className="p-3 border rounded-xl bg-slate-50">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-bold text-slate-500">{new Date(log.createdAt).toLocaleString()}</span>
-                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                        log.actionType === 'Yaratildi' ? 'bg-green-100 text-green-700' :
-                        log.actionType === 'O\'chirildi' ? 'bg-red-100 text-red-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
+                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${log.actionType === 'Yaratildi' ? 'bg-green-100 text-green-700' :
+                          log.actionType === 'O\'chirildi' ? 'bg-red-100 text-red-700' :
+                            'bg-blue-100 text-blue-700'
+                        }`}>
                         {log.actionType}
                       </span>
                     </div>

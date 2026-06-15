@@ -9,7 +9,7 @@ export default function PublicMenu() {
   useEffect(() => {
     const fetchMenu = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/public/menu");
+        const res = await axios.get("/api/public/menu");
         setMenuItems(res.data);
       } catch (err) {
         console.error("Menyuni yuklashda xatolik:", err);
@@ -72,7 +72,7 @@ export default function PublicMenu() {
               <div className="relative h-48 bg-slate-100 overflow-hidden">
                 {item.imageUrl ? (
                   <img
-                    src={`http://localhost:5000${item.imageUrl}`}
+                    src={`${item.imageUrl}`}
                     alt={item.name}
                     className="h-full object-cover group-hover:scale-105 transition-transform duration-500 h-full w-auto mx-auto"
                   />

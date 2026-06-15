@@ -10,7 +10,7 @@ export default function Login({ onLoginSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", {
+      const res = await axios.post("/api/auth/login", {
         username,
         password,
       });
@@ -22,7 +22,7 @@ export default function Login({ onLoginSuccess }) {
 
   const handleSeed = async () => {
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/seed");
+      const res = await axios.post("/api/auth/seed");
       alert(res.data.message);
     } catch (err) {
       alert("Xatolik yuz berdi yoki foydalanuvchilar allaqachon mavjud.");
