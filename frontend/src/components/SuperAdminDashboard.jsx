@@ -299,10 +299,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     </span>
                     <div className="flex flex-col gap-1 items-end">
                       <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-xs">
-                        Kunlik: {store.dailySales.toLocaleString()} | Foyda: {store.dailyProfit.toLocaleString()} UZS
+                        Kunlik: {(store?.dailySales || 0).toLocaleString()} | Foyda: {(store?.dailyProfit || 0).toLocaleString()} UZS
                       </span>
                       <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md text-xs">
-                        Umumiy: {store.totalSales.toLocaleString()} | Foyda: {store.totalProfit.toLocaleString()} UZS
+                        Umumiy: {(store?.totalSales || 0).toLocaleString()} | Foyda: {(store?.totalProfit || 0).toLocaleString()} UZS
                       </span>
                     </div>
                   </div>
