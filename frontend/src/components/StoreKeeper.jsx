@@ -10,6 +10,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   // Mahsulot formasi
   const [prodName, setProdName] = useState("");
   const [prodPrice, setProdPrice] = useState("");
+  const [prodNetPrice, setProdNetPrice] = useState("");
   const [prodStock, setProdStock] = useState("");
   const [prodUnitType, setProdUnitType] = useState("pcs");
   const [prodCategory, setProdCategory] = useState("bar");
@@ -87,6 +88,9 @@ export default function StorekeeperDashboard({ user, onLogout }) {
     const formData = new FormData();
     formData.append("name", prodName);
     formData.append("price", Number(prodPrice));
+    if (prodNetPrice) {
+      formData.append("netPrice", Number(prodNetPrice));
+    }
     formData.append("stock", finalStock);
     formData.append("unitType", prodUnitType);
     formData.append("category", prodCategory);
@@ -123,6 +127,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
     setEditingProduct(null);
     setProdName("");
     setProdPrice("");
+    setProdNetPrice("");
     setProdStock("");
     setTargetStoreId("");
     setStockAction("add");
@@ -227,16 +232,23 @@ export default function StorekeeperDashboard({ user, onLogout }) {
                 className="w-full border p-2.5 rounded-xl text-sm bg-slate-50"
               />
               {editingProduct && editingProduct.imageUrl && (
-                <p className="text-[10px] mt-1 text-slate-400 font-bold">
-                  Hozirgi rasm mavjud. Yangisini yuklasangiz, almashtiriladi.
-                </p>
+                <div className="mt-2 flex items-center gap-3 bg-slate-50 p-2 rounded-xl border">
+                  <img
+                    src={`${editingProduct.imageUrl}`}
+                    alt="Current"
+                    className="w-10 h-10 rounded-lg object-cover border shadow-sm"
+                  />
+                  <p className="text-[10px] text-slate-400 font-bold">
+                    Hozirgi rasm mavjud. Yangisini yuklasangiz, almashtiriladi.
+                  </p>
+                </div>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">
-                  Narxi (So'm)
+                  Sotish Narxi (So'm)
                 </label>
                 <input
                   type="number"
@@ -248,41 +260,54 @@ export default function StorekeeperDashboard({ user, onLogout }) {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">
-                  {editingProduct ? "O'zgarish Miqdori" : "Dastlabki Soni/Miqdori"}
+                  Tan Narxi (So'm)
                 </label>
-                {editingProduct && (
-                  <div className="flex bg-slate-100 p-1 rounded-xl mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setStockAction("add")}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${stockAction === "add" ? "bg-white text-green-600 shadow-sm" : "text-slate-500"}`}
-                    >
-                      Qo'shish (+)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStockAction("subtract")}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${stockAction === "subtract" ? "bg-white text-red-600 shadow-sm" : "text-slate-500"}`}
-                    >
-                      Ayirish (-)
-                    </button>
-                  </div>
-                )}
                 <input
                   type="number"
-                  required
-                  placeholder={editingProduct ? "Miqdorni kiriting (masalan: 5)" : "Soni"}
-                  value={prodStock}
-                  onChange={(e) => setProdStock(e.target.value)}
+                  placeholder="Ixtiyoriy"
+                  value={prodNetPrice}
+                  onChange={(e) => setProdNetPrice(e.target.value)}
                   className="w-full border p-2.5 rounded-xl text-sm"
-                  min="0"
                 />
-                {editingProduct && (
-                  <p className="text-[10px] mt-1 text-slate-400 font-bold">
-                    Hozirgi qoldiq: {Number(editingProduct.stock)} {editingProduct.unitType}
-                  </p>
-                )}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">
+                {editingProduct ? "O'zgarish Miqdori" : "Dastlabki Soni/Miqdori"}
+              </label>
+              {editingProduct && (
+                <div className="flex bg-slate-100 p-1 rounded-xl mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockAction("add")}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${stockAction === "add" ? "bg-white text-green-600 shadow-sm" : "text-slate-500"}`}
+                  >
+                    Qo'shish (+)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockAction("subtract")}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${stockAction === "subtract" ? "bg-white text-red-600 shadow-sm" : "text-slate-500"}`}
+                  >
+                    Ayirish (-)
+                  </button>
+                </div>
+              )}
+              <input
+                type="number"
+                required
+                placeholder={editingProduct ? "Miqdorni kiriting (masalan: 5)" : "Soni"}
+                value={prodStock}
+                onChange={(e) => setProdStock(e.target.value)}
+                className="w-full border p-2.5 rounded-xl text-sm"
+                min="0"
+              />
+              {editingProduct && (
+                <p className="text-[10px] mt-1 text-slate-400 font-bold">
+                  Hozirgi qoldiq: {Number(editingProduct.stock)} {editingProduct.unitType}
+                </p>
+              )}
             </div>
 
             <button
@@ -350,6 +375,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
                             setEditingProduct(p);
                             setProdName(p.name);
                             setProdPrice(p.price);
+                            setProdNetPrice(p.netPrice || "");
                             setProdStock(""); // amount is blank initially
                             setStockAction("add");
                             setTargetStoreId(p.storeId);
@@ -385,8 +411,8 @@ export default function StorekeeperDashboard({ user, onLogout }) {
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-bold text-slate-500">{new Date(log.createdAt).toLocaleString()}</span>
                       <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${log.actionType === 'Yaratildi' ? 'bg-green-100 text-green-700' :
-                          log.actionType === 'O\'chirildi' ? 'bg-red-100 text-red-700' :
-                            'bg-blue-100 text-blue-700'
+                        log.actionType === 'O\'chirildi' ? 'bg-red-100 text-red-700' :
+                          'bg-blue-100 text-blue-700'
                         }`}>
                         {log.actionType}
                       </span>

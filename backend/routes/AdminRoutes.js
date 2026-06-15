@@ -175,24 +175,32 @@ router.get('/analytics', async (req, res) => {
         const stores = await Store.findAll();
 
         let totalIncome = 0;
+        let totalProfit = 0;
         if (waiterUsername) {
             totalIncome = orders.reduce((s, o) => s + Number(o.totalAmount), 0);
+            totalProfit = orders.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0);
         } else {
             totalIncome = txs.reduce((s, t) => s + Number(t.amount), 0);
+            totalProfit = txs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
         }
 
         let storeComparison = [];
         if (!waiterUsername && !storeId) {
             storeComparison = stores.map(store => {
                 const storeSales = txs.filter(t => t.storeId === store.id);
+                const totalSales = storeSales.reduce((sum, t) => sum + Number(t.amount), 0);
+                const totalProfit = storeSales.reduce((sum, t) => sum + (Number(t.amount) - Number(t.netAmount || 0)), 0);
+                const dailyTxs = storeSales.filter(t => {
+                    const d = new Date(t.createdAt);
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return d >= today;
+                });
                 return {
                     storeName: store.name,
-                    totalSales: storeSales.reduce((sum, t) => sum + Number(t.amount), 0),
-                    dailySales: storeSales.filter(t => {
-                        const d = new Date(t.createdAt);
-                        const today = new Date(); today.setHours(0,0,0,0);
-                        return d >= today;
-                    }).reduce((sum, t) => sum + Number(t.amount), 0)
+                    totalSales,
+                    totalProfit,
+                    dailySales: dailyTxs.reduce((sum, t) => sum + Number(t.amount), 0),
+                    dailyProfit: dailyTxs.reduce((sum, t) => sum + (Number(t.amount) - Number(t.netAmount || 0)), 0)
                 };
             });
         }
@@ -201,15 +209,23 @@ router.get('/analytics', async (req, res) => {
         
         const getSum = (t_start, t_end) => {
             if (waiterUsername) {
-                return orders.filter(o => {
+                const filtered = orders.filter(o => {
                     const d = new Date(o.createdAt);
                     return d >= t_start && d < t_end;
-                }).reduce((s, o) => s + Number(o.totalAmount), 0);
+                });
+                return {
+                    daromad: filtered.reduce((s, o) => s + Number(o.totalAmount), 0),
+                    sofDaromad: filtered.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0)
+                };
             } else {
-                return txs.filter(t => {
+                const filtered = txs.filter(t => {
                     const d = new Date(t.createdAt);
                     return d >= t_start && d < t_end;
-                }).reduce((s, t) => s + Number(t.amount), 0);
+                });
+                return {
+                    daromad: filtered.reduce((s, t) => s + Number(t.amount), 0),
+                    sofDaromad: filtered.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0)
+                };
             }
         };
 
@@ -220,13 +236,13 @@ router.get('/analytics', async (req, res) => {
             for (let i = 0; i <= 23; i++) {
                 const t_start = new Date(start); t_start.setHours(i, 0, 0, 0);
                 const t_end = new Date(start); t_end.setHours(i + 1, 0, 0, 0);
-                chartData.push({ label: `${i}:00`, daromad: getSum(t_start, t_end) });
+                chartData.push({ label: `${i}:00`, ...getSum(t_start, t_end) });
             }
         } else if (diffDays <= 31) {
             for (let i = 0; i < diffDays; i++) {
                 const t_start = new Date(start); t_start.setDate(t_start.getDate() + i); t_start.setHours(0, 0, 0, 0);
                 const t_end = new Date(t_start); t_end.setDate(t_end.getDate() + 1);
-                chartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, daromad: getSum(t_start, t_end) });
+                chartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, ...getSum(t_start, t_end) });
             }
         } else {
             const startMonth = start.getMonth();
@@ -234,7 +250,7 @@ router.get('/analytics', async (req, res) => {
             for (let i = startMonth; i <= endMonth; i++) {
                 const t_start = new Date(start.getFullYear(), i, 1);
                 const t_end = new Date(start.getFullYear(), i + 1, 1);
-                chartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, daromad: getSum(t_start, t_end) });
+                chartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, ...getSum(t_start, t_end) });
             }
         }
 
@@ -243,19 +259,33 @@ router.get('/analytics', async (req, res) => {
         const getStartOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
 
         let dailyIncome = 0, weeklyIncome = 0, monthlyIncome = 0;
+        let dailyProfit = 0, weeklyProfit = 0, monthlyProfit = 0;
         if (!waiterUsername && !storeId && (!startDate && !endDate)) {
             const allTxs = await Transaction.findAll({ where: { type: 'expense' } });
-            dailyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfDay()).reduce((s, t) => s + Number(t.amount), 0);
-            weeklyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfWeek()).reduce((s, t) => s + Number(t.amount), 0);
-            monthlyIncome = allTxs.filter(t => new Date(t.createdAt) >= getStartOfMonth()).reduce((s, t) => s + Number(t.amount), 0);
+            const dailyTxs = allTxs.filter(t => new Date(t.createdAt) >= getStartOfDay());
+            const weeklyTxs = allTxs.filter(t => new Date(t.createdAt) >= getStartOfWeek());
+            const monthlyTxs = allTxs.filter(t => new Date(t.createdAt) >= getStartOfMonth());
+
+            dailyIncome = dailyTxs.reduce((s, t) => s + Number(t.amount), 0);
+            dailyProfit = dailyTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
+
+            weeklyIncome = weeklyTxs.reduce((s, t) => s + Number(t.amount), 0);
+            weeklyProfit = weeklyTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
+
+            monthlyIncome = monthlyTxs.reduce((s, t) => s + Number(t.amount), 0);
+            monthlyProfit = monthlyTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
         }
 
         res.json({
             summary: { 
                 dailyIncome: (!waiterUsername && !storeId && !startDate) ? dailyIncome : totalIncome, 
+                dailyProfit: (!waiterUsername && !storeId && !startDate) ? dailyProfit : totalProfit, 
                 weeklyIncome: (!waiterUsername && !storeId && !startDate) ? weeklyIncome : 0, 
+                weeklyProfit: (!waiterUsername && !storeId && !startDate) ? weeklyProfit : 0, 
                 monthlyIncome: (!waiterUsername && !storeId && !startDate) ? monthlyIncome : 0,
-                totalIncome
+                monthlyProfit: (!waiterUsername && !storeId && !startDate) ? monthlyProfit : 0,
+                totalIncome,
+                totalProfit
             },
             storeComparison,
             chartData

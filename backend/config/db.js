@@ -19,6 +19,7 @@ const connectDB = async () => {
         const Order = require('../models/Order');
         const OrderItem = require('../models/OrderItem');
         const InventoryLog = require('../models/InventoryLog');
+        const Store = require('../models/Store');
 
         // 3. Model munosabatlarini (Associations) o'rnatamiz
         Transaction.hasMany(OrderItem, { foreignKey: 'transactionId', onDelete: 'CASCADE' });
@@ -29,6 +30,9 @@ const connectDB = async () => {
 
         Order.hasMany(OrderItem, { foreignKey: 'orderId', as: 'OrderItems', onDelete: 'CASCADE' });
         OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
+
+        Store.hasMany(Product, { foreignKey: 'storeId' });
+        Product.belongsTo(Store, { foreignKey: 'storeId' });
 
         // 4. Strukturani sinxronizatsiya qilamiz
         await sequelize.sync({ alter: true });

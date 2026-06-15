@@ -6,6 +6,7 @@ const Transaction = sequelize.define('Transaction', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     type: { type: DataTypes.ENUM('topup', 'expense'), allowNull: false },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    netAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     location: { type: DataTypes.STRING, allowNull: false },
     storeId: {
         type: DataTypes.UUID,

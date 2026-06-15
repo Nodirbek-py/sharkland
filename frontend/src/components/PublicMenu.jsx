@@ -65,7 +65,7 @@ export default function PublicMenu() {
 
       {/* Product Grid */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-6">
           {filteredItems.map(item => (
             <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
               {/* Image Container */}
@@ -100,9 +100,9 @@ export default function PublicMenu() {
 
               {/* Content */}
               <div className="p-5">
-                <h3 className="text-lg font-bold text-slate-800 mb-1 line-clamp-1">{item.name}</h3>
-                <div className="flex justify-between items-end mt-4">
-                  <div className="text-indigo-600 font-black text-xl">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 line-clamp-1 text-xs">{item.name}</h3>
+                <div className="flex justify-between items-end">
+                  <div className="text-indigo-600 font-black text-xs">
                     {Number(item.price).toLocaleString()} <span className="text-sm">so'm</span>
                   </div>
                 </div>

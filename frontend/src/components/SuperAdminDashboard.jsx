@@ -185,10 +185,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const handleExportExcel = () => {
     const summaryData = [
-      { Parametr: "Tanlangan Filtr bo'yicha", Qiymat: analytics?.summary?.totalIncome || 0 },
+      { Parametr: "Tanlangan Filtr bo'yicha (Savdo)", Qiymat: analytics?.summary?.totalIncome || 0 },
+      { Parametr: "Tanlangan Filtr bo'yicha (Foyda)", Qiymat: analytics?.summary?.totalProfit || 0 },
       { Parametr: "Kunlik Sof Savdo", Qiymat: analytics?.summary?.dailyIncome || 0 },
+      { Parametr: "Kunlik Sof Foyda", Qiymat: analytics?.summary?.dailyProfit || 0 },
       { Parametr: "Haftalik Sof Savdo", Qiymat: analytics?.summary?.weeklyIncome || 0 },
+      { Parametr: "Haftalik Sof Foyda", Qiymat: analytics?.summary?.weeklyProfit || 0 },
       { Parametr: "Oylik Sof Savdo", Qiymat: analytics?.summary?.monthlyIncome || 0 },
+      { Parametr: "Oylik Sof Foyda", Qiymat: analytics?.summary?.monthlyProfit || 0 },
     ];
     const wsSummary = XLSX.utils.json_to_sheet(summaryData);
 
@@ -201,7 +205,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     const storeData = (analytics?.storeComparison || []).map(s => ({
       "Filial Nomi": s.storeName,
       "Kunlik Savdo (so'm)": s.dailySales,
-      "Umumiy Savdo (so'm)": s.totalSales
+      "Kunlik Foyda (so'm)": s.dailyProfit,
+      "Umumiy Savdo (so'm)": s.totalSales,
+      "Umumiy Foyda (so'm)": s.totalProfit
     }));
     const wsStore = XLSX.utils.json_to_sheet(storeData);
 
@@ -291,12 +297,12 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     <span className="font-bold text-slate-700">
                       {store.storeName}
                     </span>
-                    <div className="flex gap-4">
-                      <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        Kunlik: {store.dailySales.toLocaleString()} UZS
+                    <div className="flex flex-col gap-1 items-end">
+                      <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-xs">
+                        Kunlik: {store.dailySales.toLocaleString()} | Foyda: {store.dailyProfit.toLocaleString()} UZS
                       </span>
-                      <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md">
-                        Umumiy: {store.totalSales.toLocaleString()} UZS
+                      <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md text-xs">
+                        Umumiy: {store.totalSales.toLocaleString()} | Foyda: {store.totalProfit.toLocaleString()} UZS
                       </span>
                     </div>
                   </div>
@@ -354,30 +360,39 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           <div className="grid sm:grid-cols-4 gap-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-emerald-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">Kunlik Sof Savdo</p>
+                <p className="text-xs font-bold text-slate-400">Kunlik Savdo</p>
                 <h3 className="text-2xl font-black text-emerald-600 mt-1">
                   {analytics?.summary?.dailyIncome?.toLocaleString() || 0} UZS
                 </h3>
+                <p className="text-xs font-bold text-emerald-500 mt-1">
+                  Foyda: {analytics?.summary?.dailyProfit?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><DollarSign /></div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-blue-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">Haftalik Sof Savdo</p>
+                <p className="text-xs font-bold text-slate-400">Haftalik Savdo</p>
                 <h3 className="text-2xl font-black text-blue-600 mt-1">
                   {analytics?.summary?.weeklyIncome?.toLocaleString() || 0} UZS
                 </h3>
+                <p className="text-xs font-bold text-blue-500 mt-1">
+                  Foyda: {analytics?.summary?.weeklyProfit?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-blue-50 p-3 rounded-2xl text-blue-600"><TrendingUp /></div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-violet-50 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400">Oylik Sof Savdo</p>
+                <p className="text-xs font-bold text-slate-400">Oylik Savdo</p>
                 <h3 className="text-2xl font-black text-violet-600 mt-1">
                   {analytics?.summary?.monthlyIncome?.toLocaleString() || 0} UZS
                 </h3>
+                <p className="text-xs font-bold text-violet-500 mt-1">
+                  Foyda: {analytics?.summary?.monthlyProfit?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-violet-50 p-3 rounded-2xl text-violet-600"><Activity /></div>
             </div>
@@ -388,6 +403,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <h3 className="text-2xl font-black text-indigo-600 mt-1">
                   {analytics?.summary?.totalIncome?.toLocaleString() || 0} UZS
                 </h3>
+                <p className="text-xs font-bold text-indigo-500 mt-1">
+                  Foyda: {analytics?.summary?.totalProfit?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600"><BarChart3 /></div>
             </div>
@@ -454,6 +472,16 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient
+                      id="colorProfit"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -474,9 +502,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     tickFormatter={(v) => `${(v / 1000).toLocaleString()}k`}
                   />
                   <Tooltip
-                    formatter={(value) => [
+                    formatter={(value, name) => [
                       `${value.toLocaleString()} so'm`,
-                      "Daromad",
+                      name === 'daromad' ? 'Savdo' : 'Foyda',
                     ]}
                   />
                   <Area
@@ -486,6 +514,16 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorIncome)"
+                    name="daromad"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="sofDaromad"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorProfit)"
+                    name="sofDaromad"
                   />
                 </AreaChart>
               </ResponsiveContainer>

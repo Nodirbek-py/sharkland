@@ -4,9 +4,10 @@ const { sequelize } = require('../config/db');
 const OrderItem = sequelize.define('OrderItem', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { type: DataTypes.STRING, allowNull: false },
-    vendorUsername: { type: DataTypes.STRING, allowNull: false },
+
     quantity: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     priceAtPurchase: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    netPriceAtPurchase: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     productId: { type: DataTypes.UUID, allowNull: true },
     storeId: { type: DataTypes.UUID, allowNull: false },
     isPaid: {

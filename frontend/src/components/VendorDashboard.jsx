@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { Coffee, CheckCircle, DollarSign, Layers, Printer } from "lucide-react";
+import { Coffee, CheckCircle, DollarSign, Layers, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 
 const socket = io("");
@@ -31,6 +31,11 @@ export default function VendorDashboard({ user, onLogout }) {
   const [quickCardId, setQuickCardId] = useState("");
   const [printerName, setPrinterName] = useState("");
   const [saved, setSaved] = useState(false);
+
+  // Kassa (POS) states
+  const [products, setProducts] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [posCardId, setPosCardId] = useState("");
 
   useEffect(() => {
     if (window.api) {
@@ -64,8 +69,85 @@ export default function VendorDashboard({ user, onLogout }) {
   useEffect(() => {
     if (activeTab === "orders") {
       fetchPendingOrders();
+    } else if (activeTab === "pos") {
+      fetchProducts();
     }
   }, [activeTab]);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await axios.get(
+        `/api/vendors/inventory?storeId=${user.storeId}`
+      );
+      setProducts(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addToCart = (product) => {
+    const existing = cart.find((item) => item.productId === product.id);
+    if (existing) {
+      if (existing.quantity >= product.stock) {
+        return alert("Omborda yetarli emas!");
+      }
+      setCart(
+        cart.map((item) =>
+          item.productId === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      );
+    } else {
+      if (product.stock <= 0) return alert("Omborda yo'q!");
+      setCart([
+        ...cart,
+        {
+          productId: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1
+        }
+      ]);
+    }
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(cart.filter((item) => item.productId !== productId));
+  };
+
+  const handlePosCheckout = async (e) => {
+    e.preventDefault();
+    if (!posCardId) return alert("NFC kartani skanerlang!");
+    if (cart.length === 0) return alert("Savatcha bo'sh!");
+
+    try {
+      const res = await axios.post("/api/vendors/direct-sale", {
+        nfcCardId: posCardId,
+        items: cart,
+        vendorName: user.username,
+        storeId: user.storeId
+      });
+
+      alert(`To'lov muvaffaqiyatli! Qoldiq: ${res.data.remainingBalance} so'm`);
+
+      const storeTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+      await printReceipt({
+        id: res.data.orderId || "KASSA",
+        location: "Kassa",
+        tableNumber: "Kassa",
+        items: cart.map(i => ({ name: i.name, quantity: i.quantity, priceAtPurchase: i.price, storeId: user.storeId })),
+        storeTotal
+      });
+
+      setCart([]);
+      setPosCardId("");
+      fetchProducts(); // Refresh stock
+    } catch (err) {
+      alert(err.response?.data?.message || "Xatolik yuz berdi");
+    }
+  };
 
   useEffect(() => {
     socket.on("new_order", async (order) => {
@@ -201,6 +283,12 @@ export default function VendorDashboard({ user, onLogout }) {
             <DollarSign className="w-4 h-4" /> Tezkor To'lov
           </button>
           <button
+            onClick={() => setActiveTab("pos")}
+            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition ${activeTab === "pos" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+          >
+            <ShoppingCart className="w-4 h-4" /> Kassa (Sotuv)
+          </button>
+          <button
             onClick={() => setActiveTab("printer")}
             className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition ${activeTab === "printer" ? "bg-white text-green-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
           >
@@ -306,6 +394,87 @@ export default function VendorDashboard({ user, onLogout }) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "pos" && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <ShoppingCart className="text-emerald-500" /> Mahsulotlar (Kassa)
+              </h2>
+              {products.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">Hozircha mahsulotlar yo'q.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {products.map((p) => (
+                    <div
+                      key={p.id}
+                      className={`border p-4 rounded-xl flex flex-col justify-between bg-white shadow-sm transition ${Number(p.stock) <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md cursor-pointer border-emerald-100'}`}
+                      onClick={() => Number(p.stock) > 0 && addToCart(p)}
+                    >
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm">{p.name}</h3>
+                        <p className="text-xs text-slate-500 mt-1">Omborda: <span className="font-bold text-slate-700">{Number(p.stock).toFixed(0)}</span></p>
+                      </div>
+                      <div className="mt-3 font-extrabold text-emerald-600">
+                        {Number(p.price).toLocaleString()} so'm
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="lg:col-span-1">
+              <form onSubmit={handlePosCheckout} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:sticky lg:top-4">
+                <h2 className="text-lg font-bold text-slate-800 mb-4">Savatcha</h2>
+                <div className="space-y-3 max-h-[40vh] overflow-y-auto mb-4 border-t border-b py-3">
+                  {cart.length === 0 ? (
+                    <p className="text-slate-400 text-sm text-center py-4">Bo'sh</p>
+                  ) : (
+                    cart.map((i) => (
+                      <div key={i.productId} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0">
+                        <div>
+                          <p className="font-bold text-slate-800">{i.name}</p>
+                          <p className="text-[10px] text-slate-500">{Number(i.price).toLocaleString()} x {i.quantity}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-emerald-600">{(i.price * i.quantity).toLocaleString()}</span>
+                          <button type="button" onClick={() => removeFromCart(i.productId)} className="text-red-500 bg-red-50 p-1.5 rounded-lg">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="flex justify-between text-lg font-bold mb-4 text-slate-800">
+                  <span>Jami:</span>
+                  <span className="text-emerald-600">
+                    {cart.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()} so'm
+                  </span>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-slate-500 mb-1">NFC Karta</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Kartani skanerlang..."
+                    value={posCardId}
+                    onChange={(e) => setPosCardId(e.target.value)}
+                    className="w-full border p-3 rounded-xl font-mono bg-amber-50 text-center outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={cart.length === 0}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition"
+                >
+                  Sotish va To'lov
+                </button>
+              </form>
+            </div>
           </div>
         )}
 

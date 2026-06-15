@@ -7,10 +7,11 @@ export default function WaiterDashboard({ user, onLogout }) {
   const [cart, setCart] = useState([]);
   const [tableNumber, setTableNumber] = useState(""); // Yangi: Stol raqami shtati
   const [searchQuery, setSearchQuery] = useState(""); // Qidiruv uchun state
-  const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedStore, setSelectedStore] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const vendors = Array.from(new Set(products.map((p) => p.vendorUsername)));
+  // Extract unique stores
+  const stores = Array.from(new Set(products.map((p) => p.Store?.name).filter(Boolean)));
 
   useEffect(() => {
     fetchLiveInventory();
@@ -45,7 +46,8 @@ export default function WaiterDashboard({ user, onLogout }) {
           name: product.name,
           price: product.price,
           quantity: 1,
-          vendorUsername: product.vendorUsername, // Vendor filtrlashi uchun juda muhim!
+          storeId: product.storeId,
+          storeName: product.Store?.name
         },
       ]);
     }
@@ -115,6 +117,27 @@ export default function WaiterDashboard({ user, onLogout }) {
             </h2>
           </div>
 
+          {/* STORE FILTER TABS */}
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <button
+              onClick={() => setSelectedStore("")}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedStore === "" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+            >
+              Barchasi
+            </button>
+            {stores.map(storeName => (
+              <button
+                key={storeName}
+                onClick={() => setSelectedStore(storeName)}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedStore === storeName ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+              >
+                {storeName}
+              </button>
+            ))}
+          </div>
+
           {/* QIDIRUV */}
           <div className="flex gap-2 mb-5">
             <div className="relative flex-1">
@@ -131,8 +154,8 @@ export default function WaiterDashboard({ user, onLogout }) {
 
           {products.filter((p) => {
             const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchVendor = selectedVendor === "" || p.vendorUsername === selectedVendor;
-            return matchSearch && matchVendor;
+            const matchStore = selectedStore === "" || p.Store?.name === selectedStore;
+            return matchSearch && matchStore;
           }).length === 0 ? (
             <p className="text-slate-400 italic text-sm text-center py-12">
               Mahsulot topilmadi.
@@ -142,8 +165,8 @@ export default function WaiterDashboard({ user, onLogout }) {
               {products
                 .filter((p) => {
                   const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-                  const matchVendor = selectedVendor === "" || p.vendorUsername === selectedVendor;
-                  return matchSearch && matchVendor;
+                  const matchStore = selectedStore === "" || p.Store?.name === selectedStore;
+                  return matchSearch && matchStore;
                 })
                 .map((p) => (
                   <div

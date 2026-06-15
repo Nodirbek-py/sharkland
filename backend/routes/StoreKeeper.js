@@ -60,18 +60,18 @@ router.get('/inventory/alerts', async (req, res) => {
 
 // 3. Yangi mahsulot qo'shish
 router.post('/inventory', upload.single('image'), async (req, res) => {
-    const { name, price, stock, unitType, category, storeId, username } = req.body;
+    const { name, price, netPrice, stock, unitType, category, storeId, username } = req.body;
     try {
         const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
         
         const newProduct = await Product.create({
             name,
-            price,
+            price: Number(price),
+            netPrice: netPrice !== undefined && netPrice !== '' ? Number(netPrice) : Number(price),
             stock,
             unitType,
             category,
             storeId,
-            vendorUsername: username || 'storekeeper',
             imageUrl
         });
 
@@ -114,6 +114,9 @@ router.put('/inventory/:id', upload.single('image'), async (req, res) => {
         
         if (updateData.price !== undefined && Number(product.price) !== Number(updateData.price)) {
             details.push(`Narxi o'zgardi`);
+        }
+        if (updateData.netPrice !== undefined && Number(product.netPrice) !== Number(updateData.netPrice)) {
+            details.push(`Tan narxi o'zgardi`);
         }
         
         if (details.length > 0) {

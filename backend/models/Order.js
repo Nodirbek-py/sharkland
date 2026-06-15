@@ -7,6 +7,7 @@ const Order = sequelize.define('Order', {
     tableNumber: { type: DataTypes.STRING, allowNull: false },
     location: { type: DataTypes.STRING, allowNull: false }, // masalan: 'Hovuz Markazi'
     totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    netTotalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     status: {
         type: DataTypes.ENUM('pending', 'paid'),
         allowNull: false,
