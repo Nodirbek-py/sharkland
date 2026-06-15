@@ -18,6 +18,7 @@ const connectDB = async () => {
         const Transaction = require('../models/Transaction');
         const Order = require('../models/Order');
         const OrderItem = require('../models/OrderItem');
+        const InventoryLog = require('../models/InventoryLog');
 
         // 3. Model munosabatlarini (Associations) o'rnatamiz
         Transaction.hasMany(OrderItem, { foreignKey: 'transactionId', onDelete: 'CASCADE' });

@@ -75,6 +75,51 @@ router.get('/users', async (req, res) => {
     }
 });
 
+router.put('/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { username, password, storeId } = req.body;
+        
+        const user = await User.findByPk(id);
+        if (!user) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+
+        if (username && username !== user.username) {
+            const existingUser = await User.findOne({ where: { username } });
+            if (existingUser) return res.status(400).json({ message: "Username band!" });
+            user.username = username;
+        }
+
+        if (password) {
+            user.password = await bcrypt.hash(password, 10);
+        }
+
+        if (user.role === 'barman' && storeId !== undefined) {
+            if (storeId === "" || storeId === null) {
+                return res.status(400).json({ message: "Vendor (Filial xodimi) uchun filial tanlanishi majburiy!" });
+            }
+            user.storeId = storeId;
+        }
+
+        await user.save();
+        res.json({ message: "Foydalanuvchi muvaffaqiyatli yangilandi", user: { id: user.id, username: user.username, role: user.role, storeId: user.storeId } });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await User.findByPk(id);
+        if (!user) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+
+        await user.destroy();
+        res.json({ message: "Foydalanuvchi muvaffaqiyatli o'chirildi" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/transactions', async (req, res) => {
     try {
         const transactions = await Transaction.findAll({ order: [['createdAt', 'DESC']] });

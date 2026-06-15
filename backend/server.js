@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const { connectDB } = require('./config/db');
 
@@ -15,7 +16,7 @@ const server = http.createServer(app);
 // Socket.io sozlamalari
 const io = new Server(server, {
     cors: {
-        origin: "http://165.245.209.178/",
+        origin: "http://localhost:5173",
         methods: ["GET", "POST"],
         credentials: true
     }
@@ -23,6 +24,7 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use((req, res, next) => {
     req.io = io;
@@ -36,6 +38,7 @@ app.use('/api/vendors', require('./routes/VendorRoutes'));
 app.use('/api/storekeeper', require('./routes/StoreKeeper'));
 app.use('/api/admin', require('./routes/AdminRoutes'));
 app.use('/api/quick-charge', require('./routes/QuickChargeRoutes'));
+app.use('/api/public', require('./routes/PublicRoutes'));
 
 // Socket.io ulanishi
 io.on('connection', (socket) => {

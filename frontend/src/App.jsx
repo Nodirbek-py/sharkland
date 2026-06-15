@@ -5,6 +5,7 @@ import WaiterDashboard from "./components/WaiterDashboard";
 import VendorDashboard from "./components/VendorDashboard";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import StorekeeperDashboard from "./components/StoreKeeper";
+import PublicMenu from "./components/PublicMenu";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -24,6 +25,10 @@ export default function App() {
     setUser(null);
     localStorage.removeItem("aquapark_user");
   };
+
+  if (window.location.pathname === '/menu') {
+    return <PublicMenu />;
+  }
 
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;

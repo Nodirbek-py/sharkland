@@ -9,7 +9,14 @@ import {
   Calendar,
   BarChart3,
   Store,
+  Edit,
+  Trash2,
+  Save,
+  X,
+  Users,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -44,17 +51,21 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [selectedStore, setSelectedStore] = useState("");
   const [msg, setMsg] = useState({ text: "", isError: false });
 
+  const [allUsers, setAllUsers] = useState([]);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({ username: "", password: "", storeId: "" });
+
   const [storeName, setStoreName] = useState("");
   const [storeMsg, setStoreMsg] = useState({ text: "", isError: false });
 
   const fetchAllData = () => {
     axios
-      .get("/api/admin/transactions")
+      .get("http://localhost:5000/api/admin/transactions")
       .then((res) => setTxs(res.data))
       .catch((err) => console.error(err));
 
     axios
-      .get("/api/admin/stores")
+      .get("http://localhost:5000/api/admin/stores")
       .then((res) => {
         setStores(res.data);
         if (res.data.length > 0) setSelectedStore(res.data[0].id);
@@ -62,13 +73,18 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       .catch((err) => console.error(err));
 
     axios
-      .get("/api/admin/users?role=waiter")
+      .get("http://localhost:5000/api/admin/users?role=waiter")
       .then((res) => setWaiters(res.data))
+      .catch((err) => console.error(err));
+
+    axios
+      .get("http://localhost:5000/api/admin/users")
+      .then((res) => setAllUsers(res.data))
       .catch((err) => console.error(err));
   };
 
   useEffect(() => {
-    let url = `/api/admin/analytics?period=${graphPeriod}`;
+    let url = `http://localhost:5000/api/admin/analytics?period=${graphPeriod}`;
     if (filterStartDate) url += `&startDate=${filterStartDate}`;
     if (filterEndDate) url += `&endDate=${filterEndDate}`;
     if (filterStoreId) url += `&storeId=${filterStoreId}`;
@@ -88,7 +104,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setStoreMsg({ text: "", isError: false });
     try {
-      await axios.post("/api/admin/stores", {
+      await axios.post("http://localhost:5000/api/admin/stores", {
         name: storeName,
       });
       setStoreMsg({ text: "Filial muvaffaqiyatli ochildi!", isError: false });
@@ -106,7 +122,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     e.preventDefault();
     setMsg({ text: "", isError: false });
     try {
-      const res = await axios.post("/api/admin/users", {
+      const res = await axios.post("http://localhost:5000/api/admin/users", {
         username,
         password,
         role,
@@ -115,6 +131,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       setMsg({ text: res.data.message, isError: false });
       setUsername("");
       setPassword("");
+      fetchAllData();
     } catch (err) {
       setMsg({
         text: err.response?.data?.message || "Xatolik yuz berdi",
@@ -123,14 +140,79 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     }
   };
 
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm("Rostdan ham bu foydalanuvchini o'chirmoqchimisiz?")) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/admin/users/${id}`);
+      fetchAllData();
+    } catch (err) {
+      alert("Xatolik yuz berdi");
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user.id);
+    setEditForm({ username: user.username, password: "", storeId: user.storeId || "" });
+  };
+
+  const saveUserEdit = async (id, role) => {
+    try {
+      const payload = { username: editForm.username };
+      if (editForm.password) payload.password = editForm.password;
+      if (role === 'barman') payload.storeId = editForm.storeId;
+
+      await axios.put(`http://localhost:5000/api/admin/users/${id}`, payload);
+      setEditingUser(null);
+      fetchAllData();
+    } catch (err) {
+      alert(err.response?.data?.message || "Xatolik yuz berdi");
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingUser(null);
+  };
+
   const totalIn = txs
     ?.filter((t) => t.type === "topup")
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const getStoreName = (id) => {
-    if (!id) return "Markaziy Kassa";
+    if (!id) return "Asosiy";
     const store = stores.find((s) => s.id === id);
     return store ? store.name : "Noma'lum Filial";
+  };
+
+  const handleExportExcel = () => {
+    const summaryData = [
+      { Parametr: "Tanlangan Filtr bo'yicha", Qiymat: analytics?.summary?.totalIncome || 0 },
+      { Parametr: "Kunlik Sof Savdo", Qiymat: analytics?.summary?.dailyIncome || 0 },
+      { Parametr: "Haftalik Sof Savdo", Qiymat: analytics?.summary?.weeklyIncome || 0 },
+      { Parametr: "Oylik Sof Savdo", Qiymat: analytics?.summary?.monthlyIncome || 0 },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+
+    const chartData = (analytics?.chartData || []).map(d => ({
+      "Vaqt / Sana": d.label,
+      "Daromad (so'm)": d.daromad
+    }));
+    const wsChart = XLSX.utils.json_to_sheet(chartData);
+
+    const storeData = (analytics?.storeComparison || []).map(s => ({
+      "Filial Nomi": s.storeName,
+      "Kunlik Savdo (so'm)": s.dailySales,
+      "Umumiy Savdo (so'm)": s.totalSales
+    }));
+    const wsStore = XLSX.utils.json_to_sheet(storeData);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Umumiy Hisobot");
+    XLSX.utils.book_append_sheet(wb, wsChart, "Vaqt bo'yicha");
+    if (storeData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, wsStore, "Filiallar Kesimida");
+    }
+
+    XLSX.writeFile(wb, `Statistika_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -252,11 +334,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
               {waiters.map(w => <option key={w.id} value={w.username}>{w.username}</option>)}
             </select>
           </div>
-          <div>
+          <div className="flex gap-2 items-end">
             <button onClick={() => {
               setFilterStartDate(""); setFilterEndDate(""); setFilterStoreId(""); setFilterWaiter(""); setGraphPeriod("weekly");
             }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition h-[38px]">
               Tozalash
+            </button>
+            <button onClick={handleExportExcel} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5 h-[38px]">
+              <Download className="w-4 h-4" /> Excel
             </button>
           </div>
         </div>
@@ -511,6 +596,95 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           )}
         </div>
 
+        {/* SECTION: XODIMLAR BOSHQARUVI (Faqat Manager ko'radi) */}
+        {user.role === "manager" && (
+          <div className="bg-white p-6 rounded-2xl border shadow-sm">
+            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-4">
+              <Users className="text-blue-500 w-5 h-5" /> Barcha Xodimlar
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                  <tr>
+                    <th className="px-4 py-3 rounded-tl-xl rounded-bl-xl">Foydalanuvchi nomi</th>
+                    <th className="px-4 py-3">Lavozimi (Role)</th>
+                    <th className="px-4 py-3">Filial (Store)</th>
+                    <th className="px-4 py-3 rounded-tr-xl rounded-br-xl text-right">Amallar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3">
+                        {editingUser === u.id ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editForm.username}
+                              onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                              className="border p-1.5 rounded-lg text-sm outline-none focus:border-blue-500 w-full"
+                            />
+                            <input
+                              type="password"
+                              placeholder="Yangi parol (ixtiyoriy)"
+                              value={editForm.password}
+                              onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                              className="border p-1.5 rounded-lg text-sm outline-none focus:border-blue-500 w-full mt-2"
+                            />
+                          </>
+                        ) : (
+                          <span className="font-bold text-slate-700">{u.username}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 capitalize font-medium">{u.role}</td>
+                      <td className="px-4 py-3">
+                        {editingUser === u.id && u.role === 'barman' ? (
+                          <select
+                            value={editForm.storeId}
+                            onChange={(e) => setEditForm({ ...editForm, storeId: e.target.value })}
+                            className="border p-1.5 rounded-lg text-sm outline-none focus:border-blue-500 w-full"
+                          >
+                            <option value="">Filialni tanlang</option>
+                            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        ) : (
+                          <span className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-full text-slate-600">
+                            {getStoreName(u.storeId)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {editingUser === u.id ? (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => saveUserEdit(u.id, u.role)} className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition" title="Saqlash">
+                              <Save className="w-4 h-4" />
+                            </button>
+                            <button onClick={cancelEdit} className="p-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Bekor qilish">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEditUser(u)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="Tahrirlash">
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition" title="O'chirish">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {allUsers.length === 0 && (
+                    <tr><td colSpan="4" className="text-center py-4 text-slate-500">Foydalanuvchilar topilmadi.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* SECTION 4: AUDIT LOG */}
         <div className="bg-white p-6 rounded-2xl border shadow-sm">
           <div className="flex justify-between items-center border-b pb-3 mb-4">
@@ -523,7 +697,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-            {txs.map((t) => (
+            {txs?.map((t) => (
               <div
                 key={t.id}
                 className="flex justify-between items-center text-xs p-3 bg-slate-50 hover:bg-slate-100/70 rounded-xl border border-slate-100 transition"

@@ -23,6 +23,10 @@ const Product = sequelize.define('Product', {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'Stores', key: 'id' }
+    },
+    imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 });
 

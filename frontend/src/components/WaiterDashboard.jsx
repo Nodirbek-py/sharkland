@@ -19,7 +19,7 @@ export default function WaiterDashboard({ user, onLogout }) {
   const fetchLiveInventory = async () => {
     try {
       const res = await axios.get(
-        "/api/vendors/products/all",
+        "http://localhost:5000/api/vendors/products/all",
       );
       setProducts(res.data);
     } catch (err) {
@@ -71,7 +71,7 @@ export default function WaiterDashboard({ user, onLogout }) {
     );
 
     try {
-      await axios.post("/api/vendors/orders/place", {
+      await axios.post("http://localhost:5000/api/vendors/orders/place", {
         items: cart,
         location: "Umumiy Zal",
         tableNumber: tableNumber,
