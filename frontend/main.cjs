@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { exec } = require('child_process');
 const ThermalPrinter = require("node-thermal-printer").printer;
 const PrinterTypes = require("node-thermal-printer").types;
@@ -14,12 +15,22 @@ function getSavedPrinterName() {
     try {
         if (fs.existsSync(configPath)) {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-            return config.printerName || 'Printer_USB_Printer_Port';
+            return config.printerName || 'POS-58';
         }
     } catch (e) {
         console.error("Config read error:", e);
     }
-    return 'Printer_USB_Printer_Port';
+    return 'POS-58';
+}
+
+// Get the correct printer interface for the current OS
+function getPrinterInterface(printerName) {
+    if (process.platform === 'win32') {
+        // Windows: use shared printer path (UNC)
+        return `\\\\localhost\\${printerName}`;
+    }
+    // macOS/Linux: we'll use lp command instead, so placeholder
+    return 'placeholder';
 }
 
 function createWindow() {
@@ -34,6 +45,7 @@ function createWindow() {
     });
 
     mainWindow.loadURL('http://165.245.209.178/');
+    mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
@@ -53,9 +65,32 @@ ipcMain.handle('save-printer-name', (event, name) => {
     }
 });
 
-// Updated print handler utilizing the dynamic name
+// ============================================================
+// CROSS-PLATFORM RAW PRINT HELPER
+// Windows: node-thermal-printer execute() via shared printer
+// macOS/Linux: lp -o raw command
+// ============================================================
+async function sendBufferToPrinter(buffer, printerName) {
+    const isWin = process.platform === 'win32';
+
+    // Windows: use node-thermal-printer's execute() with shared printer path
+    try {
+        const printerInterface = `\\\\localhost\\${printerName}`;
+        fs.appendFileSync(printerInterface, buffer);
+        return { success: true };
+    } catch (error) {
+        console.error('Windows print error:', error.message);
+        return { success: false, error: `Printer xatosi: ${error.message}. Printerni "Sharing" yoqilganligini tekshiring.` };
+    }
+}
+
+// ============================================================
+// PRINT RECEIPT (Vendor buyurtma cheki)
+// ============================================================
 ipcMain.handle('print-receipt', async (event, order) => {
     try {
+        const printerName = getSavedPrinterName();
+
         let printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
             width: 32,
@@ -63,7 +98,6 @@ ipcMain.handle('print-receipt', async (event, order) => {
             interface: 'placeholder'
         });
 
-        // ... (Your receipt layout structure remains exactly the same)
         printer.alignCenter();
         printer.setTextDoubleHeight();
         printer.setTextDoubleWidth();
@@ -82,48 +116,20 @@ ipcMain.handle('print-receipt', async (event, order) => {
         printer.partialCut();
 
         const buffer = printer.getBuffer();
-        const tempFilePath = path.join(app.getPath('home'), '.receipt_print.bin');
-        fs.writeFileSync(tempFilePath, buffer);
-
-        // 👇 FETCH THE DYNAMIC NAME INSTEAD OF HARDCODING 👇
-        const printerName = getSavedPrinterName();
-
-        const isWin = process.platform === 'win32';
-        let command, fallbackCommand;
-
-        if (isWin) {
-            command = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer -Name '${printerName}'"`;
-            fallbackCommand = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer"`;
-        } else {
-            command = `lp -d "${printerName}" -o raw "${tempFilePath}"`;
-            fallbackCommand = `lp -o raw "${tempFilePath}"`;
-        }
-
-        return new Promise((resolve) => {
-            exec(command, (error) => {
-                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-
-                if (error) {
-                    console.warn(`Printing to ${printerName} failed, falling back to default...`);
-                    // System default fallback
-                    exec(fallbackCommand, (fallbackError) => {
-                        if (fallbackError) resolve({ success: false, error: fallbackError.message });
-                        else resolve({ success: true });
-                    });
-                } else {
-                    resolve({ success: true });
-                }
-            });
-        });
+        return await sendBufferToPrinter(buffer, printerName);
 
     } catch (error) {
         return { success: false, error: error.message };
     }
 });
 
-// Print handler for Receptionist Card History
+// ============================================================
+// PRINT HISTORY (Resepsion karta tarixi cheki)
+// ============================================================
 ipcMain.handle('print-history', async (event, historyData) => {
     try {
+        const printerName = getSavedPrinterName();
+
         let printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
             width: 32,
@@ -158,36 +164,7 @@ ipcMain.handle('print-history', async (event, historyData) => {
         printer.partialCut();
 
         const buffer = printer.getBuffer();
-        const tempFilePath = path.join(app.getPath('home'), '.history_print.bin');
-        fs.writeFileSync(tempFilePath, buffer);
-
-        const printerName = getSavedPrinterName();
-        const isWin = process.platform === 'win32';
-        let command, fallbackCommand;
-
-        if (isWin) {
-            command = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer -Name '${printerName}'"`;
-            fallbackCommand = `powershell -Command "Get-Content -Path '${tempFilePath}' | Out-Printer"`;
-        } else {
-            command = `lp -d "${printerName}" -o raw "${tempFilePath}"`;
-            fallbackCommand = `lp -o raw "${tempFilePath}"`;
-        }
-
-        return new Promise((resolve) => {
-            exec(command, (error) => {
-                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-
-                if (error) {
-                    console.warn(`Printing to ${printerName} failed, falling back to default...`);
-                    exec(fallbackCommand, (fallbackError) => {
-                        if (fallbackError) resolve({ success: false, error: fallbackError.message });
-                        else resolve({ success: true });
-                    });
-                } else {
-                    resolve({ success: true });
-                }
-            });
-        });
+        return await sendBufferToPrinter(buffer, printerName);
 
     } catch (error) {
         return { success: false, error: error.message };
