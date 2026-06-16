@@ -317,9 +317,9 @@ export default function ReceptionistDashboard({ user, onLogout }) {
           /* =================================================== */
           /* STANDART JADVAL VA REGISTRATSIYA REJIMI */
           /* =================================================== */
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 relative">
             {/* CHAP TOMON: FORMALAR PANEL */}
-            <div className="space-y-6">
+            <div className="space-y-6 sticky top-6 h-fit">
               {editingVisitor ? (
                 <div className="bg-amber-50/60 p-6 rounded-2xl shadow-sm border border-amber-200">
                   <div className="flex justify-between items-center mb-4">

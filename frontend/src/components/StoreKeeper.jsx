@@ -185,9 +185,9 @@ export default function StorekeeperDashboard({ user, onLogout }) {
         </button>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 grid md:grid-cols-3 gap-6">
+      <main className="max-w-7xl mx-auto p-6 grid md:grid-cols-3 gap-6 relative">
         {/* FORMA: Yangi qo'shish yoki tahrirlash */}
-        <div className="bg-white p-6 rounded-2xl border shadow-sm h-fit">
+        <div className="bg-white p-6 rounded-2xl border shadow-sm h-fit sticky top-6">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
             {editingProduct ? (
               <Edit2 className="text-amber-500 w-5 h-5" />

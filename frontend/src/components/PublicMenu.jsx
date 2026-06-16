@@ -21,11 +21,13 @@ export default function PublicMenu() {
   }, []);
 
   const itemsWithImages = menuItems.filter(item => item.imageUrl);
-  const categories = ["all", ...new Set(itemsWithImages.map(item => item.category))];
+  
+  // Nomi mavjud bo'lgan do'konlar (Filiallar)
+  const stores = ["all", ...new Set(itemsWithImages.map(item => item.Store?.name).filter(Boolean))];
 
   const filteredItems = activeCategory === "all"
     ? itemsWithImages
-    : itemsWithImages.filter(item => item.category === activeCategory);
+    : itemsWithImages.filter(item => item.Store?.name === activeCategory);
 
   if (loading) {
     return (
@@ -44,19 +46,19 @@ export default function PublicMenu() {
           <p className="text-slate-500 mt-2 text-sm font-medium">Mazali taomlar va salqin ichimliklar</p>
         </div>
 
-        {/* Category Tabs */}
+        {/* Store Tabs */}
         <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto">
           <div className="flex gap-2 justify-center min-w-max">
-            {categories.map(category => (
+            {stores.map(storeName => (
               <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-200 ${activeCategory === category
+                key={storeName}
+                onClick={() => setActiveCategory(storeName)}
+                className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-200 ${activeCategory === storeName
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-105"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
               >
-                {category === "all" ? "Barchasi" : category.charAt(0).toUpperCase() + category.slice(1)}
+                {storeName === "all" ? "Barchasi" : storeName}
               </button>
             ))}
           </div>
@@ -65,51 +67,30 @@ export default function PublicMenu() {
 
       {/* Product Grid */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          {filteredItems.map(item => (
-            <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
-              {/* Image Container */}
-              <div className="relative h-48 bg-slate-100 overflow-hidden">
-                {item.imageUrl ? (
-                  <img
-                    src={`${item.imageUrl}`}
-                    alt={item.name}
-                    className="h-full object-cover group-hover:scale-105 transition-transform duration-500 h-full w-auto mx-auto"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300">
-                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Availability Badge */}
-                <div className="absolute top-3 right-3">
-                  {Number(item.stock) > 0 ? (
-                    <span className="bg-green-500/90 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-sm">
-                      MAVJUD
-                    </span>
-                  ) : (
-                    <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-sm">
-                      TUGAGAN
-                    </span>
-                  )}
+        {activeCategory === "all" ? (
+          stores.filter(s => s !== "all").map(storeName => {
+            const storeItems = itemsWithImages.filter(item => item.Store?.name === storeName);
+            if (storeItems.length === 0) return null;
+            return (
+              <div key={storeName} className="mb-10">
+                <h2 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                  <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-sm">{storeName}</span>
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                  {storeItems.map(item => (
+                    <ProductCard key={item.id} item={item} />
+                  ))}
                 </div>
               </div>
-
-              {/* Content */}
-              <div className="p-5">
-                <h3 className="text-lg font-bold text-slate-800 mb-1 line-clamp-1 text-xs">{item.name}</h3>
-                <div className="flex justify-between items-end">
-                  <div className="text-indigo-600 font-black text-xs">
-                    {Number(item.price).toLocaleString()} <span className="text-sm">so'm</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            );
+          })
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            {filteredItems.map(item => (
+              <ProductCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
 
         {filteredItems.length === 0 && (
           <div className="text-center py-20">
@@ -123,6 +104,52 @@ export default function PublicMenu() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function ProductCard({ item }) {
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
+      {/* Image Container */}
+      <div className="relative h-48 bg-slate-100 overflow-hidden">
+        {item.imageUrl ? (
+          <img
+            src={`${item.imageUrl}`}
+            alt={item.name}
+            className="h-full object-cover group-hover:scale-105 transition-transform duration-500 w-auto mx-auto"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-300">
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Availability Badge */}
+        <div className="absolute top-3 right-3">
+          {Number(item.stock) > 0 ? (
+            <span className="bg-green-500/90 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-sm">
+              MAVJUD
+            </span>
+          ) : (
+            <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-sm">
+              TUGAGAN
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-5">
+        <h3 className="text-lg font-bold text-slate-800 mb-1 line-clamp-1 text-xs" title={item.name}>{item.name}</h3>
+        <div className="flex justify-between items-end">
+          <div className="text-indigo-600 font-black text-xs">
+            {Number(item.price).toLocaleString()} <span className="text-sm">so'm</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
