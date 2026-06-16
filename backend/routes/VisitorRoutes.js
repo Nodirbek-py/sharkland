@@ -99,7 +99,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/scan/:nfcCardId', async (req, res) => {
     try {
         const visitor = await Visitor.findOne({ where: { nfcCardId: req.params.nfcCardId } });
-        if (!visitor) return res.status(404).json({ message: "Visitor record not found." });
+        if (!visitor) return res.status(404).json({ message: "Karta egasi topilmadi." });
         res.json(visitor);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -112,7 +112,7 @@ router.post('/topup', async (req, res) => {
         const { nfcCardId, amount } = req.body;
         const visitor = await Visitor.findOne({ where: { nfcCardId } });
 
-        if (!visitor) return res.status(404).json({ message: "Visitor not found." });
+        if (!visitor) return res.status(404).json({ message: "Karta egasi topilmadi." });
 
         visitor.balance = Number(visitor.balance) + Number(amount);
         await visitor.save();
@@ -181,7 +181,7 @@ router.get('/history/:nfcCardId', async (req, res) => {
     try {
         const { Op } = require('sequelize');
         const visitor = await Visitor.findOne({ where: { nfcCardId: req.params.nfcCardId } });
-        
+
         if (!visitor) {
             return res.status(404).json({ message: "Karta egasi topilmadi." });
         }
@@ -189,7 +189,7 @@ router.get('/history/:nfcCardId', async (req, res) => {
         // Bugungi kunning boshi va oxiri
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
-        
+
         const endOfDay = new Date();
         endOfDay.setHours(23, 59, 59, 999);
 

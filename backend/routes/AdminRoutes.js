@@ -295,4 +295,43 @@ router.get('/analytics', async (req, res) => {
     }
 });
 
+// MANAGER: Barcha faol (pending) buyurtmalarni olish
+router.get('/orders/active', async (req, res) => {
+    try {
+        const OrderItem = require('../models/OrderItem');
+        const orders = await Order.findAll({
+            where: { status: 'pending' },
+            include: [{ model: OrderItem, as: 'OrderItems' }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(orders);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// MANAGER: Barcha bekor qilingan (canceled) buyurtmalarni olish
+router.get('/orders/canceled', async (req, res) => {
+    try {
+        const OrderItem = require('../models/OrderItem');
+        const orders = await Order.findAll({
+            where: { status: 'canceled' },
+            include: [{ model: OrderItem, as: 'OrderItems' }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(orders);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// MANAGER: Faol buyurtmani bekor qilish
+router.post('/orders/:id/cancel', async (req, res) => {
+    try {
+        const order = await Order.findByPk(req.params.id);
+        if (!order) return res.status(404).json({ message: "Buyurtma topilmadi" });
+        if (order.status === 'paid') return res.status(400).json({ message: "To'langan buyurtmani bekor qilib bo'lmaydi" });
+        
+        order.status = 'canceled';
+        await order.save();
+        res.json({ success: true, message: "Buyurtma bekor qilindi" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

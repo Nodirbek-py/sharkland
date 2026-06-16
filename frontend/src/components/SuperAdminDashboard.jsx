@@ -15,6 +15,7 @@ import {
   X,
   Users,
   Download,
+  Layers,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -30,6 +31,12 @@ import {
 export default function SuperAdminDashboard({ user, onLogout }) {
   const [txs, setTxs] = useState([]);
   const [stores, setStores] = useState([]);
+
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [canceledOrders, setCanceledOrders] = useState([]);
+  const [orderTab, setOrderTab] = useState("active");
+  const [cancelModal, setCancelModal] = useState({ isOpen: false, orderId: null, isLoading: false });
+  const [deleteUserModal, setDeleteUserModal] = useState({ isOpen: false, userId: null, isLoading: false });
 
   const [graphPeriod, setGraphPeriod] = useState("weekly");
 
@@ -79,7 +86,17 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
     axios
       .get("/api/admin/users")
-      .then((res) => setAllUsers(res.data))
+      .then((res) => setAllUsers(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error(err));
+
+    axios
+      .get("/api/admin/orders/active")
+      .then((res) => setActiveOrders(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error(err));
+
+    axios
+      .get("/api/admin/orders/canceled")
+      .then((res) => setCanceledOrders(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error(err));
   };
 
@@ -140,13 +157,20 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     }
   };
 
-  const handleDeleteUser = async (id) => {
-    if (!window.confirm("Rostdan ham bu foydalanuvchini o'chirmoqchimisiz?")) return;
+  const handleDeleteUser = (id) => {
+    setDeleteUserModal({ isOpen: true, userId: id, isLoading: false });
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUserModal.userId) return;
+    setDeleteUserModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await axios.delete(`/api/admin/users/${id}`);
+      await axios.delete(`/api/admin/users/${deleteUserModal.userId}`);
       fetchAllData();
+      setDeleteUserModal({ isOpen: false, userId: null, isLoading: false });
     } catch (err) {
       alert("Xatolik yuz berdi");
+      setDeleteUserModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -173,9 +197,24 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     setEditingUser(null);
   };
 
-  const totalIn = txs
-    ?.filter((t) => t.type === "topup")
-    .reduce((s, t) => s + Number(t.amount), 0);
+  const handleCancelOrder = (id) => {
+    setCancelModal({ isOpen: true, orderId: id, isLoading: false });
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelModal.orderId) return;
+    setCancelModal((prev) => ({ ...prev, isLoading: true }));
+    try {
+      await axios.post(`/api/admin/orders/${cancelModal.orderId}/cancel`);
+      setCancelModal({ isOpen: false, orderId: null, isLoading: false });
+      fetchAllData();
+    } catch (err) {
+      alert("Xatolik yuz berdi");
+      setCancelModal((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const totalIn = Array.isArray(txs) ? txs.filter((t) => t.type === "topup").reduce((s, t) => s + Number(t.amount), 0) : 0;
 
   const getStoreName = (id) => {
     if (!id) return "Asosiy";
@@ -330,14 +369,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             <label className="text-xs font-bold text-slate-500 mb-1 block">Filial (Vendor)</label>
             <select value={filterStoreId} onChange={(e) => { setFilterStoreId(e.target.value); setFilterWaiter(""); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm bg-white outline-none focus:border-blue-500">
               <option value="">Barchasi</option>
-              {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {Array.isArray(stores) && stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="flex-1">
             <label className="text-xs font-bold text-slate-500 mb-1 block">Ofitsiant</label>
             <select value={filterWaiter} onChange={(e) => { setFilterWaiter(e.target.value); setFilterStoreId(""); setGraphPeriod("custom"); }} className="w-full border p-2 rounded-xl text-sm bg-white outline-none focus:border-blue-500">
               <option value="">Barchasi</option>
-              {waiters.map(w => <option key={w.id} value={w.username}>{w.username}</option>)}
+              {Array.isArray(waiters) && waiters.map(w => <option key={w.id} value={w.username}>{w.username}</option>)}
             </select>
           </div>
           <div className="flex gap-2 items-end">
@@ -634,6 +673,70 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           )}
         </div>
 
+        {/* SECTION: BUYURTMALAR BOSHQARUVI (Manager) */}
+        {user.role === "manager" && (
+          <div className="bg-white p-6 rounded-2xl border shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Layers className="text-indigo-500 w-5 h-5" /> Buyurtmalar Boshqaruvi
+              </h3>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setOrderTab("active")}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${orderTab === "active" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Faol Buyurtmalar ({activeOrders.length})
+                </button>
+                <button
+                  onClick={() => setOrderTab("canceled")}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${orderTab === "canceled" ? "bg-white text-red-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Bekor Qilinganlar ({canceledOrders.length})
+                </button>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto pr-2">
+              {(orderTab === "active" ? activeOrders : canceledOrders).map(order => (
+                <div key={order.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+                        {order.status === 'pending' ? 'Faol' : 'Bekor Qilingan'}
+                      </span>
+                      <div className="text-right">
+                        <span className="text-xs text-slate-500 block font-medium">{order.location}</span>
+                        <span className="text-xs font-black text-slate-700 bg-slate-200 px-2 py-0.5 rounded mt-0.5 inline-block">Stol: {order.tableNumber}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 mb-3 text-sm text-slate-700">
+                      {order.OrderItems?.map((it, i) => (
+                        <p key={i}>• {it.name} <span className="text-indigo-600 font-bold">x{it.quantity}</span></p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border-t border-slate-200 pt-3 flex flex-col justify-between items-start gap-2 mt-2">
+                    <span className="font-black text-slate-800 text-lg">{Number(order.totalAmount).toLocaleString()} so'm</span>
+                    {order.status === 'pending' && (
+                      <button
+                        onClick={() => handleCancelOrder(order.id)}
+                        className="text-xs w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold px-3 py-2 rounded-lg transition"
+                      >
+                        Bekor Qilish
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {(orderTab === "active" ? activeOrders : canceledOrders).length === 0 && (
+                <div className="col-span-full py-8 text-center text-slate-400 font-medium border-2 border-dashed rounded-xl">
+                  {orderTab === "active" ? "Hozircha faol buyurtmalar yo'q." : "Bekor qilingan buyurtmalar yo'q."}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* SECTION: XODIMLAR BOSHQARUVI (Faqat Manager ko'radi) */}
         {user.role === "manager" && (
           <div className="bg-white p-6 rounded-2xl border shadow-sm">
@@ -651,7 +754,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {allUsers.map((u) => (
+                  {Array.isArray(allUsers) && allUsers.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50 transition">
                       <td className="px-4 py-3">
                         {editingUser === u.id ? (
@@ -735,7 +838,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-            {txs?.map((t) => (
+            {Array.isArray(txs) && txs.map((t) => (
               <div
                 key={t.id}
                 className="flex justify-between items-center text-xs p-3 bg-slate-50 hover:bg-slate-100/70 rounded-xl border border-slate-100 transition"
@@ -761,6 +864,63 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             ))}
           </div>
         </div>
+        {/* CUSTOM CONFIRM MODAL FOR DELETING USERS */}
+        {deleteUserModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Foydalanuvchini O'chirish</h3>
+              <p className="text-slate-500 text-sm mb-6">
+                Rostdan ham bu foydalanuvchini o'chirmoqchimisiz? Ushbu amalni ortga qaytarib bo'lmaydi.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteUserModal({ isOpen: false, userId: null, isLoading: false })}
+                  disabled={deleteUserModal.isLoading}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  Yo'q, Qaytish
+                </button>
+                <button
+                  onClick={confirmDeleteUser}
+                  disabled={deleteUserModal.isLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  {deleteUserModal.isLoading ? "Kuting..." : "Ha, O'chirish"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CUSTOM CONFIRM MODAL FOR CANCELING ORDERS */}
+        {cancelModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Buyurtmani Bekor Qilish</h3>
+              <p className="text-slate-500 text-sm mb-6">
+                Rostdan ham bu buyurtmani bekor qilmoqchimisiz? Ushbu amalni ortga qaytarib bo'lmaydi.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCancelModal({ isOpen: false, orderId: null, isLoading: false })}
+                  disabled={cancelModal.isLoading}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  Yo'q, Qaytish
+                </button>
+                <button
+                  onClick={confirmCancelOrder}
+                  disabled={cancelModal.isLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  {cancelModal.isLoading ? "Kuting..." : "Ha, Bekor Qilish"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

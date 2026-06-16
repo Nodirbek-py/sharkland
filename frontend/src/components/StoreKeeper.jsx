@@ -20,6 +20,7 @@ export default function StorekeeperDashboard({ user, onLogout }) {
   const [logs, setLogs] = useState([]);
   const [stockAction, setStockAction] = useState("add");
   const [prodImage, setProdImage] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, productId: null, isLoading: false });
 
   const fetchInventory = async () => {
     try {
@@ -134,15 +135,22 @@ export default function StorekeeperDashboard({ user, onLogout }) {
     setProdImage(null);
   };
 
-  const handleDeleteProduct = async (id) => {
-    if (!window.confirm("Rostdan ham bu mahsulotni o'chirmoqchimisiz?")) return;
+  const handleDeleteProduct = (id) => {
+    setDeleteModal({ isOpen: true, productId: id, isLoading: false });
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteModal.productId) return;
+    setDeleteModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await axios.delete(`/api/storekeeper/inventory/${id}?username=${user.username}`);
+      await axios.delete(`/api/storekeeper/inventory/${deleteModal.productId}?username=${user.username}`);
       fetchInventory();
       fetchAlerts();
       fetchLogs();
+      setDeleteModal({ isOpen: false, productId: null, isLoading: false });
     } catch (err) {
       alert("O'chirishda xatolik yuz berdi");
+      setDeleteModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -432,6 +440,33 @@ export default function StorekeeperDashboard({ user, onLogout }) {
             </>
           )}
         </div>
+        {deleteModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Mahsulotni O'chirish</h3>
+              <p className="text-slate-500 text-sm mb-6">
+                Rostdan ham bu mahsulotni o'chirmoqchimisiz? Ushbu amalni ortga qaytarib bo'lmaydi.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteModal({ isOpen: false, productId: null, isLoading: false })}
+                  disabled={deleteModal.isLoading}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  Yo'q, Qaytish
+                </button>
+                <button
+                  onClick={confirmDeleteProduct}
+                  disabled={deleteModal.isLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  {deleteModal.isLoading ? "Kuting..." : "Ha, O'chirish"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

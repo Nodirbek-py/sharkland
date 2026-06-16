@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { Coffee, CheckCircle, DollarSign, Layers, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { Coffee, CheckCircle, DollarSign, Layers, Printer, ShoppingCart, Trash2, Search } from "lucide-react";
 import { useMemo } from "react";
 
 const socket = io("");
@@ -29,6 +29,14 @@ export default function VendorDashboard({ user, onLogout }) {
   const [cards, setCards] = useState({});
   const [quickAmount, setQuickAmount] = useState("");
   const [quickCardId, setQuickCardId] = useState("");
+  const [quickChargeModal, setQuickChargeModal] = useState({
+    isOpen: false,
+    isLoading: false,
+    isSuccess: false,
+    visitor: null,
+    amount: 0,
+    nfcCardId: ""
+  });
   const [printerName, setPrinterName] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -36,6 +44,7 @@ export default function VendorDashboard({ user, onLogout }) {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [posCardId, setPosCardId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (window.api) {
@@ -206,26 +215,52 @@ export default function VendorDashboard({ user, onLogout }) {
     }
   };
 
-  // 2. UPDATE: Pass storeId for Quick Charge
-  const handleQuickCharge = async (e) => {
+  const initiateQuickCharge = async (e) => {
     e.preventDefault();
     if (!quickCardId) return alert("NFC Kartani skanerlang!");
     if (!quickAmount || Number(quickAmount) <= 0)
       return alert("To'g'ri summa kiriting!");
 
     try {
+      // Birinchi mijozni qidiramiz
+      const res = await axios.get(`/api/visitors/scan/${quickCardId}`);
+      setQuickChargeModal({
+        isOpen: true,
+        isLoading: false,
+        isSuccess: false,
+        visitor: res.data,
+        amount: Number(quickAmount),
+        nfcCardId: quickCardId
+      });
+    } catch (err) {
+      alert(err.response?.data?.message || "Karta egasi topilmadi");
+    }
+  };
+
+  const confirmQuickCharge = async () => {
+    setQuickChargeModal((prev) => ({ ...prev, isLoading: true }));
+    try {
       const res = await axios.post(
         "/api/vendors/quick-charge",
         {
-          nfcCardId: quickCardId,
-          amount: Number(quickAmount),
+          nfcCardId: quickChargeModal.nfcCardId,
+          amount: quickChargeModal.amount,
           vendorName: user.username.toUpperCase(),
           storeId: user.storeId,
         },
       );
-      // ... rest of the logic
+
+      setQuickChargeModal((prev) => ({
+        ...prev,
+        isLoading: false,
+        isSuccess: true,
+        visitor: { ...prev.visitor, balance: res.data.remainingBalance }
+      }));
+      setQuickAmount("");
+      setQuickCardId("");
     } catch (err) {
       alert(err.response?.data?.message || "To'lov amalga oshmadi");
+      setQuickChargeModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -399,15 +434,28 @@ export default function VendorDashboard({ user, onLogout }) {
 
         {activeTab === "pos" && (
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <ShoppingCart className="text-emerald-500" /> Mahsulotlar (Kassa)
-              </h2>
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <ShoppingCart className="text-emerald-500" /> Mahsulotlar (Kassa)
+                </h2>
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Mahsulot qidirish..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="border p-2 pl-9 rounded-xl text-sm outline-none bg-slate-50 focus:bg-white focus:border-emerald-300 w-full transition"
+                  />
+                </div>
+              </div>
+
               {products.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">Hozircha mahsulotlar yo'q.</div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {products.map((p) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto pr-2" style={{ maxHeight: "60vh" }}>
+                  {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map((p) => (
                     <div
                       key={p.id}
                       className={`border p-4 rounded-xl flex flex-col justify-between bg-white shadow-sm transition ${Number(p.stock) <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md cursor-pointer border-emerald-100'}`}
@@ -483,7 +531,7 @@ export default function VendorDashboard({ user, onLogout }) {
             <h2 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
               <DollarSign className="text-green-600" /> Tezkor Xizmat To'lovi
             </h2>
-            <form onSubmit={handleQuickCharge} className="space-y-5">
+            <form onSubmit={initiateQuickCharge} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">
                   Narxi (UZS)
@@ -560,6 +608,66 @@ export default function VendorDashboard({ user, onLogout }) {
               >
                 {saved ? "Saqlandi! ✅" : "Saqlash"}
               </button>
+            </div>
+          </div>
+        )}
+        {quickChargeModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              {!quickChargeModal.isSuccess ? (
+                <>
+                  <h3 className="text-xl font-bold text-slate-800 mb-4">To'lovni Tasdiqlash</h3>
+                  <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border">
+                    <p className="flex justify-between text-sm">
+                      <span className="text-slate-500 font-medium">Mijoz:</span>
+                      <span className="font-bold text-slate-800">{quickChargeModal.visitor?.name}</span>
+                    </p>
+                    <p className="flex justify-between text-sm">
+                      <span className="text-slate-500 font-medium">Joriy Balans:</span>
+                      <span className="font-bold text-blue-600">{Number(quickChargeModal.visitor?.balance).toLocaleString()} so'm</span>
+                    </p>
+                    <div className="border-t pt-2 mt-2">
+                      <p className="flex justify-between text-sm">
+                        <span className="text-slate-500 font-medium">Yechiladigan summa:</span>
+                        <span className="font-black text-red-600">-{quickChargeModal.amount.toLocaleString()} so'm</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setQuickChargeModal({ ...quickChargeModal, isOpen: false })}
+                      disabled={quickChargeModal.isLoading}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                    >
+                      Bekor qilish
+                    </button>
+                    <button
+                      onClick={confirmQuickCharge}
+                      disabled={quickChargeModal.isLoading}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {quickChargeModal.isLoading ? "Kuting..." : "Tasdiqlash"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">To'lov Muvaffaqiyatli!</h3>
+                  <p className="text-slate-500 text-sm mb-6">
+                    Yangi qoldiq: <span className="font-bold text-green-600">{Number(quickChargeModal.visitor?.balance).toLocaleString()} so'm</span>
+                  </p>
+                  <button
+                    onClick={() => setQuickChargeModal({ ...quickChargeModal, isOpen: false })}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition"
+                  >
+                    Yopish
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
