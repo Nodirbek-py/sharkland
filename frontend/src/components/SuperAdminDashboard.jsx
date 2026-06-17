@@ -42,9 +42,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const [analytics, setAnalytics] = useState({
     summary: { dailyIncome: 0, weeklyIncome: 0, monthlyIncome: 0, totalIncome: 0 },
+    tipSummary: { dailyTip: 0, weeklyTip: 0, monthlyTip: 0, totalTip: 0 },
     storeComparison: [],
+    waiterComparison: [],
     chartData: [],
+    waitersChartData: [],
   });
+
+  const [waiterChartMetric, setWaiterChartMetric] = useState("tip"); // "tip" yoki "sales"
 
   const [waiters, setWaiters] = useState([]);
   const [filterStartDate, setFilterStartDate] = useState("");
@@ -64,6 +69,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const [storeName, setStoreName] = useState("");
   const [storeMsg, setStoreMsg] = useState({ text: "", isError: false });
+  const [editingStore, setEditingStore] = useState(null);
+  const [editStoreName, setEditStoreName] = useState("");
 
   const fetchAllData = () => {
     axios
@@ -130,6 +137,20 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     } catch (err) {
       setStoreMsg({ text: "Filial qo'shishda xatolik", isError: true });
     }
+  };
+
+  const saveStoreEdit = async (id) => {
+    try {
+      await axios.put(`/api/admin/stores/${id}`, { name: editStoreName });
+      setEditingStore(null);
+      fetchAllData();
+    } catch (err) {
+      alert(err.response?.data?.message || "Filialni tahrirlashda xatolik");
+    }
+  };
+
+  const cancelStoreEdit = () => {
+    setEditingStore(null);
   };
 
   const isIndependentRole =
@@ -315,6 +336,63 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   Yaratish
                 </button>
               </form>
+
+              {/* Barcha Filiallar Ro'yxati */}
+              <div className="mt-6">
+                <h4 className="text-sm font-bold text-slate-500 mb-3">Mavjud Filiallar</h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                  {stores.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">Filiallar yo'q</p>
+                  ) : (
+                    stores.map((s) => (
+                      <div key={s.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border">
+                        {editingStore === s.id ? (
+                          <input
+                            type="text"
+                            value={editStoreName}
+                            onChange={(e) => setEditStoreName(e.target.value)}
+                            className="border p-1.5 rounded-md text-sm outline-none focus:border-indigo-500 flex-1 mr-2"
+                          />
+                        ) : (
+                          <span className="text-sm font-bold text-slate-700">{s.name}</span>
+                        )}
+                        
+                        <div className="flex gap-2">
+                          {editingStore === s.id ? (
+                            <>
+                              <button
+                                onClick={() => saveStoreEdit(s.id)}
+                                className="text-emerald-600 hover:bg-emerald-100 p-1.5 rounded transition"
+                                title="Saqlash"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelStoreEdit}
+                                className="text-red-500 hover:bg-red-100 p-1.5 rounded transition"
+                                title="Bekor qilish"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingStore(s.id);
+                                setEditStoreName(s.name);
+                              }}
+                              className="text-indigo-600 hover:bg-indigo-100 p-1.5 rounded transition"
+                              title="Tahrirlash"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -406,6 +484,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <p className="text-xs font-bold text-emerald-500 mt-1">
                   Foyda: {analytics?.summary?.dailyProfit?.toLocaleString() || 0} UZS
                 </p>
+                <p className="text-xs font-bold text-indigo-500 mt-0.5">
+                  Choychaqa: {analytics?.tipSummary?.dailyTip?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><DollarSign /></div>
             </div>
@@ -418,6 +499,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 </h3>
                 <p className="text-xs font-bold text-blue-500 mt-1">
                   Foyda: {analytics?.summary?.weeklyProfit?.toLocaleString() || 0} UZS
+                </p>
+                <p className="text-xs font-bold text-indigo-500 mt-0.5">
+                  Choychaqa: {analytics?.tipSummary?.weeklyTip?.toLocaleString() || 0} UZS
                 </p>
               </div>
               <div className="bg-blue-50 p-3 rounded-2xl text-blue-600"><TrendingUp /></div>
@@ -432,6 +516,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <p className="text-xs font-bold text-violet-500 mt-1">
                   Foyda: {analytics?.summary?.monthlyProfit?.toLocaleString() || 0} UZS
                 </p>
+                <p className="text-xs font-bold text-indigo-500 mt-0.5">
+                  Choychaqa: {analytics?.tipSummary?.monthlyTip?.toLocaleString() || 0} UZS
+                </p>
               </div>
               <div className="bg-violet-50 p-3 rounded-2xl text-violet-600"><Activity /></div>
             </div>
@@ -444,6 +531,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 </h3>
                 <p className="text-xs font-bold text-indigo-500 mt-1">
                   Foyda: {analytics?.summary?.totalProfit?.toLocaleString() || 0} UZS
+                </p>
+                <p className="text-xs font-bold text-indigo-500 mt-0.5">
+                  Choychaqa: {analytics?.tipSummary?.totalTip?.toLocaleString() || 0} UZS
                 </p>
               </div>
               <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600"><BarChart3 /></div>
@@ -568,6 +658,106 @@ export default function SuperAdminDashboard({ user, onLogout }) {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* OFITSIANTLAR GRAFIGI */}
+          <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between lg:col-span-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <Users className="text-indigo-500 w-5 h-5" /> Ofitsiantlar Tahlili
+                </h3>
+                <p className="text-xs text-slate-400 font-medium">
+                  Ofitsiantlarning choychaqa (xizmat haqi) ko'rsatkichlari grafigi
+                </p>
+              </div>
+
+              <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-center">
+                <button
+                  onClick={() => setWaiterChartMetric("tip")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${waiterChartMetric === "tip" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Choychaqa
+                </button>
+                <button
+                  onClick={() => setWaiterChartMetric("sales")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${waiterChartMetric === "sales" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  Savdo
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full h-64">
+              {(waiterChartMetric === "tip" ? analytics?.waitersChartData : analytics?.waitersSalesChartData)?.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={waiterChartMetric === "tip" ? analytics.waitersChartData : analytics.waitersSalesChartData}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis
+                      stroke="#94a3b8"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${(v / 1000).toLocaleString()}k`}
+                    />
+                    <Tooltip formatter={(value, name) => [`${value.toLocaleString()} so'm`, name]} />
+                    {Object.keys((waiterChartMetric === "tip" ? analytics.waitersChartData[0] : analytics.waitersSalesChartData[0]) || {}).filter(k => k !== 'label').map((key, index) => {
+                      const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#14b8a6", "#f97316"];
+                      const color = colors[index % colors.length];
+                      return (
+                        <Area
+                          key={key}
+                          type="monotone"
+                          dataKey={key}
+                          stroke={color}
+                          strokeWidth={2}
+                          fillOpacity={0.1}
+                          fill={color}
+                          name={key}
+                        />
+                      );
+                    })}
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <p className="text-slate-400 text-sm">Ma'lumot topilmadi</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* OFITSIANTLAR RO'YXATI TABLE */}
+          {analytics?.waiterComparison?.length > 0 && (
+            <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between lg:col-span-3">
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-4">
+                <Users className="text-indigo-500 w-5 h-5" /> Ofitsiantlar Jadvali
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b">
+                      <th className="p-3 text-xs font-bold text-slate-500 uppercase">Ofitsiant</th>
+                      <th className="p-3 text-xs font-bold text-slate-500 uppercase">Umumiy Savdo</th>
+                      <th className="p-3 text-xs font-bold text-slate-500 uppercase">Choychaqa (15%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.waiterComparison.map((w, idx) => (
+                      <tr key={idx} className="border-b hover:bg-slate-50 transition">
+                        <td className="p-3 font-bold text-slate-700">{w.waiterUsername}</td>
+                        <td className="p-3 font-semibold text-emerald-600">{w.totalSales.toLocaleString()} so'm</td>
+                        <td className="p-3 font-semibold text-indigo-600">{w.totalTip.toLocaleString()} so'm</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* YANGI XODIM QO'SHISH PANEL (Faqat Manager ko'radi) */}
           {user.role === "manager" && (

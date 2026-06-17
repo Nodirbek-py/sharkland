@@ -27,6 +27,21 @@ router.get('/stores', async (req, res) => {
     }
 });
 
+router.put('/stores/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+        const store = await Store.findByPk(id);
+        if (!store) return res.status(404).json({ message: "Filial topilmadi" });
+        
+        store.name = name;
+        await store.save();
+        res.json({ message: "Filial nomi muvaffaqiyatli yangilandi", store });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- USERS ---
 router.post('/users', async (req, res) => {
     try {
@@ -170,18 +185,31 @@ router.get('/analytics', async (req, res) => {
                 txWhere.storeId = storeId;
             }
             txs = await Transaction.findAll({ where: txWhere });
+            
+            // Waiter tahlillari uchun hamma to'langan waiter buyurtmalarini olamiz
+            orders = await Order.findAll({
+                where: {
+                    status: 'paid',
+                    hasTip: true,
+                    createdAt: { [Op.between]: [start, end] }
+                }
+            });
         }
 
         const stores = await Store.findAll();
 
         let totalIncome = 0;
         let totalProfit = 0;
+        let totalTip = 0;
+
         if (waiterUsername) {
             totalIncome = orders.reduce((s, o) => s + Number(o.totalAmount), 0);
             totalProfit = orders.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0);
+            totalTip = orders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
         } else {
             totalIncome = txs.reduce((s, t) => s + Number(t.amount), 0);
             totalProfit = txs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
+            totalTip = txs.reduce((s, t) => s + Number(t.tipAmount || 0), 0) + orders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
         }
 
         let storeComparison = [];
@@ -205,7 +233,22 @@ router.get('/analytics', async (req, res) => {
             });
         }
 
+        let waiterComparison = [];
+        if (!storeId) {
+            const waitersList = [...new Set(orders.map(o => o.waiterUsername))];
+            waiterComparison = waitersList.map(w => {
+                const wOrders = orders.filter(o => o.waiterUsername === w);
+                return {
+                    waiterUsername: w,
+                    totalSales: wOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+                    totalTip: wOrders.reduce((sum, o) => sum + Number(o.tipAmount || 0), 0),
+                };
+            });
+        }
+
         let chartData = [];
+        let waitersChartData = []; // Tip uchun
+        let waitersSalesChartData = []; // Savdo uchun
         
         const getSum = (t_start, t_end) => {
             if (waiterUsername) {
@@ -215,18 +258,37 @@ router.get('/analytics', async (req, res) => {
                 });
                 return {
                     daromad: filtered.reduce((s, o) => s + Number(o.totalAmount), 0),
-                    sofDaromad: filtered.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0)
+                    sofDaromad: filtered.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0),
+                    choychaqa: filtered.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
                 };
             } else {
                 const filtered = txs.filter(t => {
                     const d = new Date(t.createdAt);
                     return d >= t_start && d < t_end;
                 });
+                const filteredOrders = orders.filter(o => {
+                    const d = new Date(o.createdAt);
+                    return d >= t_start && d < t_end;
+                });
                 return {
                     daromad: filtered.reduce((s, t) => s + Number(t.amount), 0),
-                    sofDaromad: filtered.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0)
+                    sofDaromad: filtered.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0),
+                    choychaqa: filteredOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
                 };
             }
+        };
+
+        const getWaiterSum = (t_start, t_end, isSales = false) => {
+            const filteredOrders = orders.filter(o => {
+                const d = new Date(o.createdAt);
+                return d >= t_start && d < t_end;
+            });
+            const data = {};
+            filteredOrders.forEach(o => {
+                if (!data[o.waiterUsername]) data[o.waiterUsername] = 0;
+                data[o.waiterUsername] += isSales ? Number(o.totalAmount || 0) : Number(o.tipAmount || 0);
+            });
+            return data;
         };
 
         const diffTime = Math.abs(end - start);
@@ -237,12 +299,16 @@ router.get('/analytics', async (req, res) => {
                 const t_start = new Date(start); t_start.setHours(i, 0, 0, 0);
                 const t_end = new Date(start); t_end.setHours(i + 1, 0, 0, 0);
                 chartData.push({ label: `${i}:00`, ...getSum(t_start, t_end) });
+                waitersChartData.push({ label: `${i}:00`, ...getWaiterSum(t_start, t_end, false) });
+                waitersSalesChartData.push({ label: `${i}:00`, ...getWaiterSum(t_start, t_end, true) });
             }
         } else if (diffDays <= 31) {
             for (let i = 0; i < diffDays; i++) {
                 const t_start = new Date(start); t_start.setDate(t_start.getDate() + i); t_start.setHours(0, 0, 0, 0);
                 const t_end = new Date(t_start); t_end.setDate(t_end.getDate() + 1);
                 chartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, ...getSum(t_start, t_end) });
+                waitersChartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, ...getWaiterSum(t_start, t_end, false) });
+                waitersSalesChartData.push({ label: `${t_start.getDate()}/${t_start.getMonth()+1}`, ...getWaiterSum(t_start, t_end, true) });
             }
         } else {
             const startMonth = start.getMonth();
@@ -251,6 +317,8 @@ router.get('/analytics', async (req, res) => {
                 const t_start = new Date(start.getFullYear(), i, 1);
                 const t_end = new Date(start.getFullYear(), i + 1, 1);
                 chartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, ...getSum(t_start, t_end) });
+                waitersChartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, ...getWaiterSum(t_start, t_end, false) });
+                waitersSalesChartData.push({ label: `${t_start.getMonth()+1}/${t_start.getFullYear()}`, ...getWaiterSum(t_start, t_end, true) });
             }
         }
 
@@ -260,6 +328,8 @@ router.get('/analytics', async (req, res) => {
 
         let dailyIncome = 0, weeklyIncome = 0, monthlyIncome = 0;
         let dailyProfit = 0, weeklyProfit = 0, monthlyProfit = 0;
+        let dailyTip = 0, weeklyTip = 0, monthlyTip = 0;
+
         if (!waiterUsername && !storeId && (!startDate && !endDate)) {
             const allTxs = await Transaction.findAll({ where: { type: 'expense' } });
             const dailyTxs = allTxs.filter(t => new Date(t.createdAt) >= getStartOfDay());
@@ -274,6 +344,15 @@ router.get('/analytics', async (req, res) => {
 
             monthlyIncome = monthlyTxs.reduce((s, t) => s + Number(t.amount), 0);
             monthlyProfit = monthlyTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
+
+            const allTipOrders = await Order.findAll({ where: { status: 'paid', hasTip: true } });
+            const dailyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfDay());
+            const weeklyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfWeek());
+            const monthlyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfMonth());
+
+            dailyTip = dailyOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
+            weeklyTip = weeklyOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
+            monthlyTip = monthlyOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
         }
 
         res.json({
@@ -287,8 +366,17 @@ router.get('/analytics', async (req, res) => {
                 totalIncome,
                 totalProfit
             },
+            tipSummary: {
+                dailyTip: (!waiterUsername && !storeId && !startDate) ? dailyTip : 0,
+                weeklyTip: (!waiterUsername && !storeId && !startDate) ? weeklyTip : 0,
+                monthlyTip: (!waiterUsername && !storeId && !startDate) ? monthlyTip : 0,
+                totalTip
+            },
             storeComparison,
-            chartData
+            waiterComparison,
+            chartData,
+            waitersChartData,
+            waitersSalesChartData
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

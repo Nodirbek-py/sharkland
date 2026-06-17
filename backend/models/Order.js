@@ -8,6 +8,8 @@ const Order = sequelize.define('Order', {
     location: { type: DataTypes.STRING, allowNull: false }, // masalan: 'Hovuz Markazi'
     totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     netTotalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    tipAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    hasTip: { type: DataTypes.BOOLEAN, defaultValue: false },
     status: {
         type: DataTypes.ENUM('pending', 'paid', 'canceled'),
         allowNull: false,

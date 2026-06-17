@@ -67,17 +67,21 @@ export default function WaiterDashboard({ user, onLogout }) {
   const confirmAndSendOrder = async (isPaidOnSpot) => {
     setShowPaymentModal(false);
 
-    const total = cart.reduce(
+    const subTotal = cart.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
+    const tipAmount = subTotal * 0.15;
+    const totalAmount = subTotal + tipAmount;
 
     try {
       await axios.post("/api/vendors/orders/place", {
         items: cart,
         location: "Umumiy Zal",
         tableNumber: tableNumber,
-        totalAmount: total,
+        totalAmount: subTotal, // DBda totalAmount bu sof savdo (items cost)
+        tipAmount: tipAmount,
+        hasTip: true,
         waiterUsername: user.username,
         paidOnSpot: isPaidOnSpot
       });
@@ -255,12 +259,26 @@ export default function WaiterDashboard({ user, onLogout }) {
             </div>
 
             <div className="border-t pt-4">
-              <div className="flex justify-between text-base font-bold mb-4">
-                <span>Umumiy:</span>
-                <span className="text-blue-600">
+              <div className="flex justify-between text-sm font-bold mb-1 text-slate-500">
+                <span>Mahsulotlar:</span>
+                <span>
                   {cart
                     .reduce((s, i) => s + i.price * i.quantity, 0)
                     .toLocaleString()}{" "}
+                  so'm
+                </span>
+              </div>
+              <div className="flex justify-between text-sm font-bold mb-3 text-indigo-500">
+                <span>15% Xizmat haqi:</span>
+                <span>
+                  {(cart.reduce((s, i) => s + i.price * i.quantity, 0) * 0.15).toLocaleString()}{" "}
+                  so'm
+                </span>
+              </div>
+              <div className="flex justify-between text-lg font-black mb-4">
+                <span>Umumiy:</span>
+                <span className="text-blue-600">
+                  {(cart.reduce((s, i) => s + i.price * i.quantity, 0) * 1.15).toLocaleString()}{" "}
                   so'm
                 </span>
               </div>

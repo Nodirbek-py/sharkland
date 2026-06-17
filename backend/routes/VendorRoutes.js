@@ -27,7 +27,7 @@ router.get('/products/all', async (req, res) => {
 });
 
 router.post('/orders/place', async (req, res) => {
-    const { items, location, totalAmount, tableNumber, waiterUsername, paidOnSpot } = req.body;
+    const { items, location, totalAmount, tipAmount, hasTip, tableNumber, waiterUsername, paidOnSpot } = req.body;
 
     try {
         // 1. Asosiy bitta buyurtmani yaratish
@@ -36,6 +36,8 @@ router.post('/orders/place', async (req, res) => {
             location,
             totalAmount: Number(totalAmount),
             netTotalAmount: 0,
+            tipAmount: Number(tipAmount || 0),
+            hasTip: Boolean(hasTip),
             status: 'pending',
             waiterUsername
         });
@@ -147,12 +149,20 @@ router.post('/orders/charge-pending', async (req, res) => {
             storeNetTotal += Number(item.netPriceAtPurchase || item.priceAtPurchase || 0) * Number(item.quantity || 0);
         });
 
-        if (Number(visitor.balance) < storeTotal) {
+        // 2.5 Tip hisoblash
+        let storeTipAmount = 0;
+        if (order.hasTip) {
+            storeTipAmount = storeTotal * 0.15;
+        }
+
+        const totalToCharge = storeTotal + storeTipAmount;
+
+        if (Number(visitor.balance) < totalToCharge) {
             return res.status(400).json({ message: "Mijoz balansida mablag' yetarli emas!" });
         }
 
-        // 3. Mijozdan faqat filialning pulini yechish
-        visitor.balance = Number(visitor.balance) - storeTotal;
+        // 3. Mijozdan faqat filialning pulini (va uning choychaqasini) yechish
+        visitor.balance = Number(visitor.balance) - totalToCharge;
         await visitor.save();
 
         // 4. Shu mahsulotlarni to'langan va tayyor deb belgilash
@@ -166,8 +176,9 @@ router.post('/orders/charge-pending', async (req, res) => {
         await Transaction.create({
             visitorId: visitor.id,
             type: 'expense',
-            amount: storeTotal,
+            amount: storeTotal, // Daromad uchun faqat maxsulotlar narxi
             netAmount: storeNetTotal,
+            tipAmount: storeTipAmount, // Choychaqa alohida
             location: order.location,
             storeId: storeId
         });
