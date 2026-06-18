@@ -147,7 +147,7 @@ router.get('/transactions', async (req, res) => {
 // --- ANALYTICS & STORE COMPARISON ---
 router.get('/analytics', async (req, res) => {
     try {
-        const { period, startDate, endDate, storeId, waiterUsername } = req.query;
+        const { period, startDate, endDate, storeId, waiterUsername, waiterStartDate, waiterEndDate } = req.query;
 
         let start, end;
         const now = new Date();
@@ -169,13 +169,13 @@ router.get('/analytics', async (req, res) => {
         }
 
         let txs = [];
-        let orders = [];
+        let allOrders = [];
 
         if (waiterUsername) {
-            orders = await Order.findAll({ 
+            allOrders = await Order.findAll({ 
                 where: { 
                     waiterUsername, 
-                    status: 'paid',
+                    status: { [Op.in]: ['pending', 'paid'] },
                     createdAt: { [Op.between]: [start, end] }
                 } 
             });
@@ -186,15 +186,18 @@ router.get('/analytics', async (req, res) => {
             }
             txs = await Transaction.findAll({ where: txWhere });
             
-            // Waiter tahlillari uchun hamma to'langan waiter buyurtmalarini olamiz
-            orders = await Order.findAll({
+            // Waiter tahlillari uchun hamma waiter buyurtmalarini olamiz (pending va paid)
+            allOrders = await Order.findAll({
                 where: {
-                    status: 'paid',
+                    status: { [Op.in]: ['pending', 'paid'] },
                     hasTip: true,
                     createdAt: { [Op.between]: [start, end] }
                 }
             });
         }
+
+        const paidOrders = allOrders.filter(o => o.status === 'paid');
+        const tipOrders = allOrders.filter(o => o.hasTip);
 
         const stores = await Store.findAll();
 
@@ -203,13 +206,13 @@ router.get('/analytics', async (req, res) => {
         let totalTip = 0;
 
         if (waiterUsername) {
-            totalIncome = orders.reduce((s, o) => s + Number(o.totalAmount), 0);
-            totalProfit = orders.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0);
-            totalTip = orders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
+            totalIncome = paidOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
+            totalProfit = paidOrders.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0);
+            totalTip = tipOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
         } else {
             totalIncome = txs.reduce((s, t) => s + Number(t.amount), 0);
             totalProfit = txs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
-            totalTip = txs.reduce((s, t) => s + Number(t.tipAmount || 0), 0) + orders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
+            totalTip = txs.reduce((s, t) => s + Number(t.tipAmount || 0), 0) + tipOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0);
         }
 
         let storeComparison = [];
@@ -235,13 +238,33 @@ router.get('/analytics', async (req, res) => {
 
         let waiterComparison = [];
         if (!storeId) {
-            const waitersList = [...new Set(orders.map(o => o.waiterUsername))];
+            let targetWaitersOrders = allOrders;
+
+            if (waiterStartDate && waiterEndDate) {
+                const wStart = new Date(waiterStartDate);
+                wStart.setHours(0, 0, 0, 0);
+                const wEnd = new Date(waiterEndDate);
+                wEnd.setHours(23, 59, 59, 999);
+
+                targetWaitersOrders = await Order.findAll({
+                    where: {
+                        status: { [Op.in]: ['pending', 'paid'] },
+                        createdAt: { [Op.between]: [wStart, wEnd] }
+                    }
+                });
+            }
+
+            const wPaid = targetWaitersOrders.filter(o => o.status === 'paid');
+            const wTip = targetWaitersOrders.filter(o => o.hasTip);
+
+            const waitersList = [...new Set(targetWaitersOrders.map(o => o.waiterUsername))];
             waiterComparison = waitersList.map(w => {
-                const wOrders = orders.filter(o => o.waiterUsername === w);
+                const wPaidOrders = wPaid.filter(o => o.waiterUsername === w);
+                const wTipOrders = wTip.filter(o => o.waiterUsername === w);
                 return {
                     waiterUsername: w,
-                    totalSales: wOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
-                    totalTip: wOrders.reduce((sum, o) => sum + Number(o.tipAmount || 0), 0),
+                    totalSales: wPaidOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+                    totalTip: wTipOrders.reduce((sum, o) => sum + Number(o.tipAmount || 0), 0),
                 };
             });
         }
@@ -252,34 +275,39 @@ router.get('/analytics', async (req, res) => {
         
         const getSum = (t_start, t_end) => {
             if (waiterUsername) {
-                const filtered = orders.filter(o => {
+                const filteredPaid = paidOrders.filter(o => {
+                    const d = new Date(o.createdAt);
+                    return d >= t_start && d < t_end;
+                });
+                const filteredTip = tipOrders.filter(o => {
                     const d = new Date(o.createdAt);
                     return d >= t_start && d < t_end;
                 });
                 return {
-                    daromad: filtered.reduce((s, o) => s + Number(o.totalAmount), 0),
-                    sofDaromad: filtered.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0),
-                    choychaqa: filtered.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
+                    daromad: filteredPaid.reduce((s, o) => s + Number(o.totalAmount), 0),
+                    sofDaromad: filteredPaid.reduce((s, o) => s + (Number(o.totalAmount) - Number(o.netTotalAmount || 0)), 0),
+                    choychaqa: filteredTip.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
                 };
             } else {
-                const filtered = txs.filter(t => {
+                const filteredTxs = txs.filter(t => {
                     const d = new Date(t.createdAt);
                     return d >= t_start && d < t_end;
                 });
-                const filteredOrders = orders.filter(o => {
+                const filteredTipOrders = tipOrders.filter(o => {
                     const d = new Date(o.createdAt);
                     return d >= t_start && d < t_end;
                 });
                 return {
-                    daromad: filtered.reduce((s, t) => s + Number(t.amount), 0),
-                    sofDaromad: filtered.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0),
-                    choychaqa: filteredOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
+                    daromad: filteredTxs.reduce((s, t) => s + Number(t.amount), 0),
+                    sofDaromad: filteredTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0),
+                    choychaqa: filteredTipOrders.reduce((s, o) => s + Number(o.tipAmount || 0), 0)
                 };
             }
         };
 
         const getWaiterSum = (t_start, t_end, isSales = false) => {
-            const filteredOrders = orders.filter(o => {
+            const targetOrders = isSales ? paidOrders : tipOrders;
+            const filteredOrders = targetOrders.filter(o => {
                 const d = new Date(o.createdAt);
                 return d >= t_start && d < t_end;
             });
@@ -345,7 +373,7 @@ router.get('/analytics', async (req, res) => {
             monthlyIncome = monthlyTxs.reduce((s, t) => s + Number(t.amount), 0);
             monthlyProfit = monthlyTxs.reduce((s, t) => s + (Number(t.amount) - Number(t.netAmount || 0)), 0);
 
-            const allTipOrders = await Order.findAll({ where: { status: 'paid', hasTip: true } });
+            const allTipOrders = await Order.findAll({ where: { status: { [Op.in]: ['pending', 'paid'] }, hasTip: true } });
             const dailyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfDay());
             const weeklyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfWeek());
             const monthlyOrders = allTipOrders.filter(t => new Date(t.createdAt) >= getStartOfMonth());

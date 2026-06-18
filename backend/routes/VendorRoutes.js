@@ -82,7 +82,8 @@ router.post('/orders/place', async (req, res) => {
             location: order.location,
             totalAmount: order.totalAmount,
             status: 'pending',
-            items: orderItemsPayload
+            items: orderItemsPayload,
+            createdAt: order.createdAt
         });
 
         res.json({ success: true, message: "Buyurtma yuborildi", orderId: order.id });
@@ -208,6 +209,34 @@ router.post('/orders/mark-done', async (req, res) => {
 
         const items = await OrderItem.findAll({ where: { orderId: order.id, storeId: storeId } });
         for (let item of items) {
+            item.isPrepared = true;
+            await item.save();
+        }
+
+        const remainingUnprepared = await OrderItem.count({ where: { orderId: order.id, isPrepared: false } });
+        if (remainingUnprepared === 0) {
+            order.status = 'paid';
+            await order.save();
+        }
+
+        req.io.emit('store_order_paid', { orderId, paidStoreId: storeId });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Buyurtmani to'lovsiz yopish (inventar avvaldan ayirib tashlangan)
+router.post('/orders/close-free', async (req, res) => {
+    const { orderId, storeId } = req.body;
+    try {
+        const order = await Order.findByPk(orderId);
+        if (!order) return res.status(404).json({ message: "Buyurtma topilmadi." });
+
+        const items = await OrderItem.findAll({ where: { orderId: order.id, storeId: storeId, isPaid: false } });
+        
+        for (let item of items) {
+            item.isPaid = true;
             item.isPrepared = true;
             await item.save();
         }

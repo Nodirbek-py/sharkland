@@ -57,6 +57,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [filterStoreId, setFilterStoreId] = useState("");
   const [filterWaiter, setFilterWaiter] = useState("");
 
+  const [waiterStartDate, setWaiterStartDate] = useState("");
+  const [waiterEndDate, setWaiterEndDate] = useState("");
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("waiter");
@@ -113,12 +116,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     if (filterEndDate) url += `&endDate=${filterEndDate}`;
     if (filterStoreId) url += `&storeId=${filterStoreId}`;
     if (filterWaiter) url += `&waiterUsername=${filterWaiter}`;
+    if (waiterStartDate) url += `&waiterStartDate=${waiterStartDate}`;
+    if (waiterEndDate) url += `&waiterEndDate=${waiterEndDate}`;
 
     axios
       .get(url)
       .then((res) => setAnalytics(res.data))
       .catch((err) => console.error(err));
-  }, [graphPeriod, filterStartDate, filterEndDate, filterStoreId, filterWaiter]);
+  }, [graphPeriod, filterStartDate, filterEndDate, filterStoreId, filterWaiter, waiterStartDate, waiterEndDate]);
 
   useEffect(() => {
     fetchAllData();
@@ -356,7 +361,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                         ) : (
                           <span className="text-sm font-bold text-slate-700">{s.name}</span>
                         )}
-                        
+
                         <div className="flex gap-2">
                           {editingStore === s.id ? (
                             <>
@@ -659,83 +664,37 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          {/* OFITSIANTLAR GRAFIGI */}
-          <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between lg:col-span-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                  <Users className="text-indigo-500 w-5 h-5" /> Ofitsiantlar Tahlili
-                </h3>
-                <p className="text-xs text-slate-400 font-medium">
-                  Ofitsiantlarning choychaqa (xizmat haqi) ko'rsatkichlari grafigi
-                </p>
-              </div>
-
-              <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-center">
-                <button
-                  onClick={() => setWaiterChartMetric("tip")}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${waiterChartMetric === "tip" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-                >
-                  Choychaqa
-                </button>
-                <button
-                  onClick={() => setWaiterChartMetric("sales")}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${waiterChartMetric === "sales" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-                >
-                  Savdo
-                </button>
-              </div>
-            </div>
-
-            <div className="w-full h-64">
-              {(waiterChartMetric === "tip" ? analytics?.waitersChartData : analytics?.waitersSalesChartData)?.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={waiterChartMetric === "tip" ? analytics.waitersChartData : analytics.waitersSalesChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis
-                      stroke="#94a3b8"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(v) => `${(v / 1000).toLocaleString()}k`}
-                    />
-                    <Tooltip formatter={(value, name) => [`${value.toLocaleString()} so'm`, name]} />
-                    {Object.keys((waiterChartMetric === "tip" ? analytics.waitersChartData[0] : analytics.waitersSalesChartData[0]) || {}).filter(k => k !== 'label').map((key, index) => {
-                      const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#14b8a6", "#f97316"];
-                      const color = colors[index % colors.length];
-                      return (
-                        <Area
-                          key={key}
-                          type="monotone"
-                          dataKey={key}
-                          stroke={color}
-                          strokeWidth={2}
-                          fillOpacity={0.1}
-                          fill={color}
-                          name={key}
-                        />
-                      );
-                    })}
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <p className="text-slate-400 text-sm">Ma'lumot topilmadi</p>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* OFITSIANTLAR RO'YXATI TABLE */}
           {analytics?.waiterComparison?.length > 0 && (
             <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between lg:col-span-3">
-              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-4">
-                <Users className="text-indigo-500 w-5 h-5" /> Ofitsiantlar Jadvali
-              </h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <Users className="text-indigo-500 w-5 h-5" /> Ofitsiantlar Jadvali
+                </h3>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="date" 
+                    value={waiterStartDate} 
+                    onChange={(e) => setWaiterStartDate(e.target.value)} 
+                    className="border p-1.5 rounded-lg text-sm outline-none focus:border-indigo-500" 
+                    title="Boshlanish sanasi"
+                  />
+                  <span className="text-slate-400">-</span>
+                  <input 
+                    type="date" 
+                    value={waiterEndDate} 
+                    onChange={(e) => setWaiterEndDate(e.target.value)} 
+                    className="border p-1.5 rounded-lg text-sm outline-none focus:border-indigo-500" 
+                    title="Tugash sanasi"
+                  />
+                  <button 
+                    onClick={() => { setWaiterStartDate(""); setWaiterEndDate(""); }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition"
+                  >
+                    Tozalash
+                  </button>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>

@@ -37,6 +37,11 @@ export default function VendorDashboard({ user, onLogout }) {
     amount: 0,
     nfcCardId: ""
   });
+  const [freeCloseModal, setFreeCloseModal] = useState({
+    isOpen: false,
+    orderId: null,
+    isLoading: false
+  });
   const [printerName, setPrinterName] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -215,6 +220,21 @@ export default function VendorDashboard({ user, onLogout }) {
     }
   };
 
+  const confirmFreeClose = async () => {
+    if (!freeCloseModal.orderId) return;
+    setFreeCloseModal(prev => ({ ...prev, isLoading: true }));
+    try {
+      await axios.post("/api/vendors/orders/close-free", {
+        orderId: freeCloseModal.orderId,
+        storeId: user.storeId
+      });
+      setFreeCloseModal({ isOpen: false, orderId: null, isLoading: false });
+    } catch (err) {
+      alert("Xatolik: " + (err.response?.data?.message || err.message));
+      setFreeCloseModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
   const initiateQuickCharge = async (e) => {
     e.preventDefault();
     if (!quickCardId) return alert("NFC Kartani skanerlang!");
@@ -363,7 +383,10 @@ export default function VendorDashboard({ user, onLogout }) {
                           Kutilmoqda
                         </span>
                         <div className="text-right">
-                          <span className="text-xs text-slate-400 block font-medium">
+                          <span className="text-[10px] text-slate-400 block font-bold mb-0.5 uppercase tracking-wide">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                          <span className="text-xs text-slate-500 block font-medium mb-1.5">
                             {order.location}
                           </span>
                           <span className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
@@ -418,9 +441,15 @@ export default function VendorDashboard({ user, onLogout }) {
                           />
                           <button
                             onClick={() => handleCharge(order.id)}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition"
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition mb-2"
                           >
                             <CheckCircle className="w-4 h-4" /> To'lovni Yopish
+                          </button>
+                          <button
+                            onClick={() => setFreeCloseModal({ isOpen: true, orderId: order.id, isLoading: false })}
+                            className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition"
+                          >
+                            To'lovsiz Yopish
                           </button>
                         </>
                       )}
@@ -668,6 +697,31 @@ export default function VendorDashboard({ user, onLogout }) {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {freeCloseModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">To'lovsiz Yopish</h3>
+              <p className="text-sm text-slate-500 mb-6">Rostdan ham ushbu buyurtmani to'lovsiz yopmoqchimisiz? (Mijoz kartasidan pul yechilmaydi, lekin mahsulotlar ombordan qisqaradi)</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setFreeCloseModal({ isOpen: false, orderId: null, isLoading: false })}
+                  disabled={freeCloseModal.isLoading}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  Yo'q, Qaytish
+                </button>
+                <button
+                  onClick={confirmFreeClose}
+                  disabled={freeCloseModal.isLoading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+                >
+                  {freeCloseModal.isLoading ? "Kuting..." : "Ha, Yopish"}
+                </button>
+              </div>
             </div>
           </div>
         )}
